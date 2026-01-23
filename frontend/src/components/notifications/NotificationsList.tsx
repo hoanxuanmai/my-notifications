@@ -8,11 +8,11 @@ import { NotificationType, NotificationPriority } from '@/types';
 import ChannelSettingsModal from '@/components/channels/ChannelSettingsModal';
 
 const typeColors = {
-  [NotificationType.info]: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-  [NotificationType.success]: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-  [NotificationType.warning]: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-  [NotificationType.error]: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-  [NotificationType.debug]: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
+  [NotificationType.info]: 'bg-blue-50 text-blue-700 border border-blue-100',
+  [NotificationType.success]: 'bg-green-50 text-green-700 border border-green-100',
+  [NotificationType.warning]: 'bg-yellow-50 text-yellow-700 border border-yellow-100',
+  [NotificationType.error]: 'bg-red-50 text-red-700 border border-red-100',
+  [NotificationType.debug]: 'bg-gray-50 text-gray-700 border border-gray-200',
 };
 
 const priorityColors = {
@@ -72,8 +72,8 @@ export default function NotificationsList() {
     : hasMoreGlobal;
 
   return (
-    <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow p-2.5 sm:p-4 flex flex-col max-h-[calc(100vh-5.5rem)] sm:max-h-[calc(100vh-7rem)]">
-      <div className="flex items-start justify-between gap-3 flex-wrap mb-3 pb-1 border-b border-gray-100 dark:border-gray-700/60">
+    <div className="relative bg-white rounded-lg shadow p-2.5 sm:p-4 flex flex-col max-h-[calc(100vh-5.5rem)] sm:max-h-[calc(100vh-7rem)]">
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-3 pb-1 border-b border-gray-200">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <h2 className="text-lg sm:text-xl font-semibold truncate" title={title}>
@@ -83,7 +83,7 @@ export default function NotificationsList() {
               <button
                 type="button"
                 onClick={() => setSettingsChannel(selectedChannel as Channel)}
-                className="inline-flex h-8 w-8 sm:h-8 sm:w-auto items-center justify-center rounded-full bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-600 dark:text-gray-200 text-xs sm:px-3 sm:text-[11px]"
+                className="inline-flex h-8 w-8 sm:h-8 sm:w-auto items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:px-3 sm:text-[11px]"
                 aria-label="Channel settings"
               >
                 <span className="sm:hidden text-lg leading-none">⚙</span>
@@ -92,12 +92,12 @@ export default function NotificationsList() {
             )}
           </div>
           {selectedChannel?.description && (
-            <p className="mt-1 text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
+            <p className="mt-1 text-xs text-gray-600 line-clamp-2">
               {selectedChannel.description}
             </p>
           )}
           {unreadCount > 0 && (
-            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
+            <p className="text-xs sm:text-sm text-gray-600 mt-1">
               {unreadCount} unread
             </p>
           )}
@@ -130,8 +130,8 @@ export default function NotificationsList() {
               onClick={() => !notification.read && markAsRead(notification.id)}
               className={`p-3 sm:p-4 rounded border-l-4 cursor-pointer transition ${
                 notification.read
-                  ? 'bg-gray-50 dark:bg-gray-700 border-gray-300'
-                  : 'bg-white dark:bg-gray-800 border-blue-500'
+                ? 'bg-gray-50 border-gray-200'
+                : 'bg-white border-blue-400'
               } hover:shadow-md`}
             >
               <div className="flex justify-between items-start">
@@ -152,7 +152,7 @@ export default function NotificationsList() {
                     )}
                   </div>
                   <h3 className="font-semibold mb-1">{notification.title}</h3>
-                  <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+                  <p className="text-sm text-gray-700 mb-2">
                     {notification.message}
                   </p>
                   {!selectedChannelId && notification.channel && (

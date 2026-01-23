@@ -32,7 +32,8 @@ if (typeof window !== 'undefined') {
   }
 
   // Global 401 handler: if any authenticated request gets 401,
-  // clear local auth data and redirect to the login page.
+  // clear local auth data and notify the app so it can show
+  // the login modal instead of redirecting to a separate page.
   apiClient.interceptors.response.use(
     (response) => response,
     (error) => {
@@ -45,13 +46,9 @@ if (typeof window !== 'undefined') {
         } catch {
           // ignore storage errors
         }
-
-        // Redirect to login page. Using location.href to avoid
-        // importing routing hooks into this shared lib.
         if (typeof window !== 'undefined') {
-          if (!window.location.pathname.startsWith('/login')) {
-            window.location.href = '/login';
-          }
+          // Fire a custom event so UI can react (e.g. open login modal)
+          window.dispatchEvent(new Event('auth-unauthorized'));
         }
       }
 

@@ -54,13 +54,13 @@ export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 flex flex-col h-full">
-      <div className="flex items-center justify-between gap-2 mb-3 pb-1 border-b border-gray-100 dark:border-gray-700/60">
+    <div className="bg-white rounded-lg shadow p-3 sm:p-4 flex flex-col h-full">
+      <div className="flex items-center justify-between gap-2 mb-3 pb-1 border-b border-gray-200">
         <div className="min-w-0">
-          <h2 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-gray-50">
+          <h2 className="text-sm sm:text-base font-semibold text-gray-900">
             Channels
           </h2>
-          <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400 hidden sm:block">
+          <p className="mt-0.5 text-[11px] text-gray-500 hidden sm:block">
             Manage your notification groups
           </p>
         </div>
@@ -86,10 +86,10 @@ export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
                 setSelectedChannel(channel.id);
                 onChannelSelected?.();
               }}
-              className={`p-3 rounded cursor-pointer transition ${
+              className={`p-3 rounded cursor-pointer border transition ${
                 selectedChannelId === channel.id
-                  ? 'bg-blue-100 dark:bg-blue-900'
-                  : 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600'
+                ? 'bg-blue-50 border-blue-200'
+                : 'bg-white border-gray-200 hover:bg-gray-50'
               }`}
             >
               <div className="flex justify-between items-start gap-2">
@@ -97,7 +97,7 @@ export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
                   <h3 className="font-medium text-sm sm:text-base truncate">{channel.name}</h3>
                   {lastNotification ? (
                     <>
-                      <p className="mt-1 text-xs text-gray-600 dark:text-gray-300 line-clamp-1">
+                      <p className="mt-1 text-xs text-gray-600 line-clamp-1">
                         {lastNotification.title}
                       </p>
                       <p className="mt-0.5 text-[11px] text-gray-400">
@@ -106,13 +106,13 @@ export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
                     </>
                   ) : (
                     channel.description && (
-                      <p className="mt-1 text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
+                        <p className="mt-1 text-xs text-gray-600 line-clamp-2">
                         {channel.description}
                       </p>
                     )
                   )}
                   {unreadCount > 0 && (
-                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                    <p className="text-xs text-blue-600 mt-1">
                       {unreadCount} unread
                     </p>
                   )}

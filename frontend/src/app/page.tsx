@@ -7,14 +7,16 @@ import { useAuthStore } from '@/stores/auth-store';
 import { initWebPush } from '@/lib/webpush';
 import ChannelsList from '@/components/channels/ChannelsList';
 import NotificationsList from '@/components/notifications/NotificationsList';
+import LoginModal from '@/components/auth/LoginModal';
 
 export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const router = useRouter();
   // Initialize auth-store to restore from localStorage and subscribe user
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const { fetchChannels, fetchNotifications } = useNotificationsStore();
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   // Avoid mismatch between server and client rendering
   useEffect(() => {
@@ -29,13 +31,30 @@ export default function Home() {
       : null;
 
     if (!token) {
-      router.replace('/login');
+      setShowLoginModal(true);
       return;
     }
 
+    setShowLoginModal(false);
     fetchChannels();
     fetchNotifications();
-  }, [fetchChannels, fetchNotifications, router, isMounted]);
+  }, [fetchChannels, fetchNotifications, isMounted, user]);
+
+  // Listen for global unauthorized events (401) to force logout
+  // and show the login modal instead of redirecting.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handler = () => {
+      logout();
+      setShowLoginModal(true);
+    };
+
+    window.addEventListener('auth-unauthorized', handler);
+    return () => {
+      window.removeEventListener('auth-unauthorized', handler);
+    };
+  }, [logout]);
 
   // Initialize Web Push after user login
   useEffect(() => {
@@ -114,6 +133,12 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Login modal when user is not authenticated */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+      />
+
       {/* Mobile sidebar overlay with slide-in/out animation */}
       <div
         className={`fixed inset-0 z-40 flex md:hidden transition-opacity duration-300 ${
@@ -129,14 +154,14 @@ export default function Home() {
         {/* Sidebar panel */}
         <div className="relative flex h-full">
           <div
-            className={`relative h-full w-72 max-w-full bg-white dark:bg-gray-900 shadow-xl transform transition-transform duration-300 ease-in-out ${
+            className={`relative h-full w-72 max-w-full bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${
               isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
             }`}
           >
             <button
               type="button"
               onClick={() => setIsSidebarOpen(false)}
-              className="absolute right-1 top-1 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-300 text-white shadow hover:bg-red-600"
+              className="absolute right-1 top-1 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-200 text-gray-700 shadow hover:bg-gray-300"
               aria-label="Close channels list"
             >
               ×
