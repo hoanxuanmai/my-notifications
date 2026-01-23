@@ -105,11 +105,11 @@ export default function ChannelSettingsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-3 py-4 sm:p-6">
-      <div className="relative w-full max-w-lg bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
+      <div className="relative w-full max-w-lg bg-white text-gray-900 rounded-lg shadow-lg p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-300 text-white shadow hover:bg-red-600 text-sm leading-none"
+          className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 text-gray-700 shadow hover:bg-gray-300 text-sm leading-none"
           aria-label="Close channel settings"
         >
           ×
@@ -125,12 +125,12 @@ export default function ChannelSettingsModal({
               <input
                 readOnly
                 value={webhookUrl}
-                className="flex-1 border rounded px-2 py-1 text-xs bg-gray-50 dark:bg-gray-700 dark:border-gray-600"
+                className="flex-1 border border-gray-200 rounded px-2 py-1 text-xs bg-gray-50"
               />
               <button
                 type="button"
                 onClick={handleCopyWebhook}
-                className="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-600 rounded hover:bg-gray-300 dark:hover:bg-gray-500"
+                className="px-2 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200"
               >
                 {copyState === 'copied' ? 'Copied' : 'Copy'}
               </button>
@@ -151,7 +151,7 @@ export default function ChannelSettingsModal({
                 return (
                   <div
                     key={member.id}
-                    className="flex items-center justify-between py-1 border-b last:border-b-0 border-gray-100 dark:border-gray-700"
+                    className="flex items-center justify-between py-1 border-b last:border-b-0 border-gray-100"
                   >
                     <div>
                       <div>{label}</div>
@@ -179,7 +179,7 @@ export default function ChannelSettingsModal({
                     placeholder="User email to add"
                     value={newUserEmail}
                     onChange={(e) => setNewUserEmail(e.target.value)}
-                    className="flex-1 border rounded px-2 py-1 text-xs bg-white dark:bg-gray-900 dark:border-gray-600"
+                    className="flex-1 border border-gray-200 rounded px-2 py-1 text-xs bg-white"
                   />
                   <button
                     type="button"
