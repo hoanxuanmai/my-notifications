@@ -13,11 +13,30 @@ class WebSocketService {
     }
 
     this.socket = io(`${WS_URL}/notifications`, {
-      transports: ['websocket'],
+      // Use long polling only to avoid WebSocket timeout issues
+      transports: ['polling'],
+      upgrade: false,
+      timeout: 60000,
     });
 
     this.socket.on('connect', () => {
       console.log('WebSocket connected');
+    });
+
+    this.socket.on('connect_error', (error) => {
+      console.error('WebSocket connect_error:', error);
+    });
+
+    this.socket.on('error', (error) => {
+      console.error('WebSocket error:', error);
+    });
+
+    this.socket.on('reconnect_error', (error) => {
+      console.error('WebSocket reconnect_error:', error);
+    });
+
+    this.socket.on('reconnect_failed', () => {
+      console.error('WebSocket reconnect_failed');
     });
 
     this.socket.on('disconnect', () => {
