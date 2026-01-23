@@ -43,7 +43,8 @@ export async function initWebPush(): Promise<void> {
     if (!subscription) {
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        // Cast to BufferSource to satisfy TypeScript while keeping runtime behavior
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as unknown as BufferSource,
       });
     }
 

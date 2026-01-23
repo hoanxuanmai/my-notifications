@@ -68,12 +68,13 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
         wsService.on('notification:new', (notification: Notification) => {
           // Update unread badge per channel from notification:new
           if (typeof notification.unreadCount === 'number') {
-            set((state) => ({
-              unreadByChannelId: {
+            set((state) => {
+              const unreadByChannelId: Record<string, number> = {
                 ...state.unreadByChannelId,
-                [notification.channelId]: notification.unreadCount,
-              },
-            }));
+              };
+              unreadByChannelId[notification.channelId] = notification.unreadCount as number;
+              return { unreadByChannelId };
+            });
           }
           // Thêm notification vào danh sách chi tiết
           get().addNotification(notification);
@@ -106,12 +107,13 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
 
         // Listen for channel unread updates (badge-level)
         wsService.on('channel:unread-updated', (data: { channelId: string; unreadCount: number }) => {
-          set((state) => ({
-            unreadByChannelId: {
+          set((state) => {
+            const unreadByChannelId: Record<string, number> = {
               ...state.unreadByChannelId,
-              [data.channelId]: data.unreadCount,
-            },
-          }));
+            };
+            unreadByChannelId[data.channelId] = data.unreadCount;
+            return { unreadByChannelId };
+          });
         });
 
         set({ realtimeInitialized: true });
