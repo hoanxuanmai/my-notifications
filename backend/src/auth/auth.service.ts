@@ -51,13 +51,15 @@ export class AuthService {
   }
 
   async validateJwtPayload(payload: JwtPayload): Promise<UserPublic> {
-    const user = await this.usersService.findOne(payload.sub);
-
-    if (!user || !user.isActive) {
+    try {
+      const user = await this.usersService.findOne(payload.sub);
+      if (!user || !user.isActive) {
+        throw new UnauthorizedException('User not found or inactive');
+      }
+      return user;
+    } catch {
       throw new UnauthorizedException('User not found or inactive');
     }
-
-    return user;
   }
 }
 

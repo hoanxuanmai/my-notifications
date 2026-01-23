@@ -60,19 +60,31 @@ export class NotificationsDispatchService {
           config: (dc as any).config || {},
         });
       }
-
-      // Ensure WebSocket is always sent at least once for the channel,
-      // even if the user has not configured a separate WEB_SOCKET delivery channel.
-      jobs.push({
-        notificationId: notification.id,
-        channelId,
-        userId,
-        type: DeliveryChannelType.WEB_SOCKET,
-        config: {},
-      });
     }
 
     return jobs;
+  }
+
+  /**
+   * Dispatch WebSocket notifications for all target users of a given notification.
+   * This is intended to be called only from the backend API process,
+   * so workers can process other delivery channels independently.
+   */
+  async dispatchWebSocketForNotification(notification: NotificationWithChannel): Promise<void> {
+    const channelId = notification.channel.id;
+
+    // Determine list of target users: owner + members
+    const ownerId = notification.channel.userId;
+    const members = await this.channelMembersRepository.findMembersByChannelId(channelId);
+    const userIds = new Set<string>();
+    userIds.add(ownerId);
+    for (const m of members) {
+      userIds.add(m.userId);
+    }
+
+    for (const userId of userIds) {
+      await this.dispatchViaWebSocket(channelId, userId, notification);
+    }
   }
 
   /**

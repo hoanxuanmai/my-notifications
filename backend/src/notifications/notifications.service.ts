@@ -8,6 +8,7 @@ import { NotificationFilter } from '../common/types/database.types';
 import { ChannelsRepository } from '../common/repositories/channels.repository';
 import { ChannelMembersRepository } from '../common/repositories/channel-members.repository';
 import { NotificationsGateway } from '../websocket/notifications.gateway';
+import { NotificationsDispatchService } from './notifications-dispatch.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 
@@ -18,6 +19,7 @@ export class NotificationsService {
     private readonly channelsRepository: ChannelsRepository,
     private readonly channelMembersRepository: ChannelMembersRepository,
     private readonly notificationsGateway: NotificationsGateway,
+    private readonly notificationsDispatchService: NotificationsDispatchService,
     @InjectQueue('notifications-dispatch')
     private readonly notificationsDispatchQueue: Queue,
   ) {}
@@ -45,6 +47,9 @@ export class NotificationsService {
         },
       },
     );
+
+    // Emit WebSocket notifications directly from the backend process
+    await this.notificationsDispatchService.dispatchWebSocketForNotification(notification as any);
 
     // Push dispatch job to queue to handle asynchronously
     await this.notificationsDispatchQueue.add(

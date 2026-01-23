@@ -30,6 +30,34 @@ if (typeof window !== 'undefined') {
   if (token) {
     setApiAuthToken(token);
   }
+
+  // Global 401 handler: if any authenticated request gets 401,
+  // clear local auth data and redirect to the login page.
+  apiClient.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      const status = error?.response?.status;
+
+      if (status === 401) {
+        try {
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('auth_user');
+        } catch {
+          // ignore storage errors
+        }
+
+        // Redirect to login page. Using location.href to avoid
+        // importing routing hooks into this shared lib.
+        if (typeof window !== 'undefined') {
+          if (!window.location.pathname.startsWith('/login')) {
+            window.location.href = '/login';
+          }
+        }
+      }
+
+      return Promise.reject(error);
+    },
+  );
 }
 
 // Channels API
