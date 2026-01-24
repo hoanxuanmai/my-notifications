@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useAuthStore } from "@/stores/auth-store";
+import RegisterLink from "./RegisterLink";
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -59,13 +60,13 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <div className="flex justify-end gap-2 pt-2">
-            <button
+            {/* <button
               type="button"
               onClick={onClose}
               className="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
             >
               Cancel
-            </button>
+            </button> */}
             <button
               type="submit"
               disabled={loading}
@@ -75,6 +76,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
             </button>
           </div>
         </form>
+        <RegisterLink />
       </div>
     </div>
   );

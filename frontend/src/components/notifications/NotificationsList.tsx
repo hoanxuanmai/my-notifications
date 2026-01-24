@@ -72,7 +72,7 @@ export default function NotificationsList() {
     : hasMoreGlobal;
 
   return (
-    <div className="relative bg-white rounded-lg shadow p-2.5 sm:p-4 flex flex-col max-h-[calc(100vh-5.5rem)] sm:max-h-[calc(100vh-7rem)]">
+    <div className="relative bg-transparent md:bg-white md:rounded-lg md:shadow p-2.5 sm:p-4 flex flex-col max-h-[calc(100vh-5.5rem)] sm:max-h-[calc(100vh-7rem)]">
       <div className="flex items-start justify-between gap-3 flex-wrap mb-3 pb-1 border-b border-gray-200">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -151,7 +151,7 @@ export default function NotificationsList() {
                       <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
                     )}
                   </div>
-                  <h3 className="font-semibold mb-1">{notification.title}</h3>
+                  <h3 className="font-semibold mb-1 text-gray-800">{notification.title}</h3>
                   <p className="text-sm text-gray-700 mb-2">
                     {notification.message}
                   </p>

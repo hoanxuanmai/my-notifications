@@ -1,6 +1,9 @@
 "use client";
 
 import { useMemo, useState } from 'react';
+import ConfirmModal from '@/components/common/ConfirmModal';
+// AlertModal is now global
+import { useAlertStore } from '@/stores/alert-store';
 import { format } from 'date-fns';
 import { useNotificationsStore } from '@/stores/notifications-store';
 import ChannelCreateModal from '@/components/channels/ChannelCreateModal';
@@ -11,6 +14,11 @@ interface ChannelsListProps {
 
 export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  // Modal state for delete
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  // Use global alert store
+  const showAlert = useAlertStore((s) => s.showAlert);
 
   const {
     channels,
@@ -42,19 +50,26 @@ export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
     setIsCreateOpen(true);
   };
 
-  const handleDeleteChannel = async (id: string, e: React.MouseEvent) => {
+  const handleDeleteChannel = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm('Are you sure you want to delete this channel?')) {
-      try {
-        await deleteChannel(id);
-      } catch (error) {
-        alert('Failed to delete channel');
-      }
+    setPendingDeleteId(id);
+    setConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteId) return;
+    setConfirmOpen(false);
+    try {
+      await deleteChannel(pendingDeleteId);
+    } catch (error) {
+      showAlert('Failed to delete channel', 'Error');
+    } finally {
+      setPendingDeleteId(null);
     }
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-3 sm:p-4 flex flex-col h-full">
+    <div className="bg-white rounded-xl shadow-lg p-3 sm:p-4 flex flex-col h-full border border-gray-200">
       <div className="flex items-center justify-between gap-2 mb-3 pb-1 border-b border-gray-200">
         <div className="min-w-0">
           <h2 className="text-sm sm:text-base font-semibold text-gray-900">
@@ -94,7 +109,7 @@ export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
             >
               <div className="flex justify-between items-start gap-2">
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-sm sm:text-base truncate">{channel.name}</h3>
+                  <h3 className="font-medium text-gray-800 text-sm sm:text-base truncate">{channel.name}</h3>
                   {lastNotification ? (
                     <>
                       <p className="mt-1 text-xs text-gray-600 line-clamp-1">
@@ -138,10 +153,29 @@ export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
           try {
             await createChannel({ name, description });
           } catch (error) {
-            alert('Failed to create channel');
+            showAlert('Failed to create channel', 'Error');
             throw error;
           }
         }}
+      />
+      <ConfirmModal
+        open={confirmOpen}
+        title="Delete Channel"
+        description="Are you sure you want to delete this channel?"
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => { setConfirmOpen(false); setPendingDeleteId(null); }}
+      />
+      {/* AlertModal is now rendered globally in layout */}
+      <ConfirmModal
+        open={confirmOpen}
+        title="Delete Channel"
+        description="Are you sure you want to delete this channel?"
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => { setConfirmOpen(false); setPendingDeleteId(null); }}
       />
     </div>
   );

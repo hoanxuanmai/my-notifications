@@ -74,6 +74,36 @@ pnpm run dev
 
 Frontend sẽ chạy tại: `http://localhost:3001`
 
+## 🎨 Design Tokens & Theming (Frontend)
+
+Toàn bộ màu sắc và kiểu dáng (background, text, border, button, input…) đã được chuẩn hóa bằng CSS variables và tích hợp với Tailwind.
+
+- Vị trí tokens: [frontend/src/app/globals.css](frontend/src/app/globals.css)
+- Tailwind mapping: [frontend/tailwind.config.ts](frontend/tailwind.config.ts)
+
+### Cách dùng trong components
+- Nền và chữ: dùng `bg-background`, `text-foreground`
+- Viền: dùng `border`, `border-border`
+- Button: dùng `bg-primary`, `text-primary-foreground` (đã có style cơ bản)
+- Trạng thái phụ: `bg-secondary`, `text-secondary-foreground`, `bg-accent`, `text-accent-foreground`
+- Input: `border-input`, hiệu ứng focus `ring-ring`
+
+Ví dụ nhanh:
+
+```tsx
+<div className="bg-background text-foreground p-4 border border-border rounded-md">
+  <button className="bg-primary text-primary-foreground px-3 py-2 rounded-md">
+    Save
+  </button>
+  <input className="mt-3 w-full border-input bg-background text-foreground rounded-md px-3 py-2 focus:ring-2 focus:ring-ring" />
+}</div>
+```
+
+### Tùy biến theme
+- Sửa trực tiếp các biến trong [frontend/src/app/globals.css](frontend/src/app/globals.css)
+- Hỗ trợ auto dark mode qua `prefers-color-scheme: dark` (đã cấu hình sẵn)
+- Có thể thêm class/theme riêng bằng cách override biến trong selector tuỳ ý (vd. `.theme-ocean { --primary: ... }`)
+
 ## 📖 Tài liệu
 
 - **[PROJECT_STATUS.md](./PROJECT_STATUS.md)** ⭐ **File tổng hợp toàn bộ context dự án - Đọc file này trước!**

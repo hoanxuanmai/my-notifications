@@ -1,3 +1,11 @@
+// Notification with channel info for dispatch
+export type NotificationWithChannel = Notification & {
+  channel: {
+    id: string;
+    userId: string;
+    name?: string;
+  };
+};
 import { NotificationType, NotificationPriority } from '../enums/notification.enum';
 import { DeliveryChannelType } from '../enums/delivery-channel.enum';
 

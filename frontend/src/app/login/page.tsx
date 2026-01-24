@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth-store';
+import RegisterLink from '@/components/auth/RegisterLink';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,9 +22,9 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+    <main className="min-h-screen flex items-center justify-center bg-gray-50 p-4 text-gray-600">
       <div className="w-full max-w-md bg-white shadow-md rounded-lg p-8">
-        <h1 className="text-2xl font-semibold mb-6 text-center">Sign in</h1>
+        <h1 className="text-2xl font-semibold mb-6 text-center text-black">Sign in</h1>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -60,6 +61,7 @@ export default function LoginPage() {
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
+        <RegisterLink />
       </div>
     </main>
   );

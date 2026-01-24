@@ -8,6 +8,7 @@ import { initWebPush } from '@/lib/webpush';
 import ChannelsList from '@/components/channels/ChannelsList';
 import NotificationsList from '@/components/notifications/NotificationsList';
 import LoginModal from '@/components/auth/LoginModal';
+import SmartInstallOverlay from '@/components/common/SmartInstallOverlay';
 
 export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
@@ -72,7 +73,9 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen px-3 py-3 sm:p-6 lg:p-8">
+    <>
+      <SmartInstallOverlay />
+      <main className="min-h-screen px-3 py-3 sm:p-6 lg:p-8 ">
       <div className="max-w-7xl mx-auto flex flex-col min-h-[calc(100vh-1.5rem)] sm:min-h-[calc(100vh-3rem)]">
         {/* Header */}
         <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6 flex-shrink-0">
@@ -80,7 +83,7 @@ export default function Home() {
           <button
             type="button"
             onClick={() => setIsSidebarOpen(true)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 bg-white/80 backdrop-blur hover:bg-gray-100 text-gray-700 shadow-sm sm:hidden"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/80 backdrop-blur hover:bg-gray-100 text-gray-700 shadow-sm sm:hidden"
             aria-label="Open channels list"
           >
             <span className="text-lg">☰</span>
@@ -172,7 +175,8 @@ export default function Home() {
           </div>
         </div>
       </div>
-    </main>
+      </main>
+    </>
   );
 }
 

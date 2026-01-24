@@ -3,15 +3,8 @@ import { NotificationsGateway } from '../websocket/notifications.gateway';
 import { ChannelMembersRepository } from '../common/repositories/channel-members.repository';
 import { UserDeliveryChannelsRepository } from '../common/repositories/user-delivery-channels.repository';
 import { DeliveryChannelType } from '../common/enums/delivery-channel.enum';
-import { Notification } from '../common/types/database.types';
+import { Notification, NotificationWithChannel } from '../common/types/database.types';
 import * as webpush from 'web-push';
-
-export type NotificationWithChannel = Notification & {
-  channel: {
-    id: string;
-    userId: string;
-  };
-};
 
 export interface DeliveryJobData {
   notificationId: string;
@@ -19,6 +12,7 @@ export interface DeliveryJobData {
   userId: string;
   type: DeliveryChannelType;
   config: Record<string, any>;
+  notification: Notification;
 }
 
 @Injectable()
@@ -32,14 +26,17 @@ export class NotificationsDispatchService {
   ) {}
 
   /**
-    * Build the list of delivery jobs (per user + delivery channel) for a notification.
+   * Build the list of delivery jobs (per user + delivery channel) for a notification.
    */
-  async buildDeliveryJobs(notification: NotificationWithChannel): Promise<DeliveryJobData[]> {
+  async buildDeliveryJobs(
+    notification: NotificationWithChannel,
+  ): Promise<DeliveryJobData[]> {
     const channelId = notification.channel.id;
 
     // 1. Determine list of target users: owner + members
     const ownerId = notification.channel.userId;
-    const members = await this.channelMembersRepository.findMembersByChannelId(channelId);
+    const members =
+      await this.channelMembersRepository.findMembersByChannelId(channelId);
     const userIds = new Set<string>();
     userIds.add(ownerId);
     for (const m of members) {
@@ -49,7 +46,8 @@ export class NotificationsDispatchService {
 
     // 2. For each user, create a job for every configured delivery channel
     for (const userId of userIds) {
-      const deliveryChannels = await this.userDeliveryChannelsRepository.findActiveByUserId(userId);
+      const deliveryChannels =
+        await this.userDeliveryChannelsRepository.findActiveByUserId(userId);
 
       for (const dc of deliveryChannels) {
         jobs.push({
@@ -58,6 +56,7 @@ export class NotificationsDispatchService {
           userId,
           type: dc.type as DeliveryChannelType,
           config: (dc as any).config || {},
+          notification: notification,
         });
       }
     }
@@ -70,12 +69,15 @@ export class NotificationsDispatchService {
    * This is intended to be called only from the backend API process,
    * so workers can process other delivery channels independently.
    */
-  async dispatchWebSocketForNotification(notification: NotificationWithChannel): Promise<void> {
+  async dispatchWebSocketForNotification(
+    notification: NotificationWithChannel,
+  ): Promise<void> {
     const channelId = notification.channel.id;
 
     // Determine list of target users: owner + members
     const ownerId = notification.channel.userId;
-    const members = await this.channelMembersRepository.findMembersByChannelId(channelId);
+    const members =
+      await this.channelMembersRepository.findMembersByChannelId(channelId);
     const userIds = new Set<string>();
     userIds.add(ownerId);
     for (const m of members) {
@@ -90,13 +92,20 @@ export class NotificationsDispatchService {
   /**
    * Execute a specific delivery job (by delivery channel type).
    */
-  async executeDelivery(job: DeliveryJobData, notification: Notification): Promise<void> {
+  async executeDelivery(
+    job: DeliveryJobData,
+    notification: Notification,
+  ): Promise<void> {
     this.logger.log(
       `Executing delivery for notification ${notification.id} to user ${job.userId} via ${job.type}`,
     );
     switch (job.type) {
       case DeliveryChannelType.WEB_SOCKET:
-        await this.dispatchViaWebSocket(job.channelId, job.userId, notification);
+        await this.dispatchViaWebSocket(
+          job.channelId,
+          job.userId,
+          notification,
+        );
         break;
       case DeliveryChannelType.WEB_PUSH:
         await this.dispatchViaWebPush(job.userId, notification, job.config);
@@ -118,7 +127,7 @@ export class NotificationsDispatchService {
     notification.unreadCount =
       await this.channelMembersRepository.countUnreadForUserInChannel(
         userId,
-        channelId
+        channelId,
       );
     this.notificationsGateway.emitNewNotificationToUser(userId, notification);
   }
@@ -130,24 +139,31 @@ export class NotificationsDispatchService {
     subscription: any,
   ): Promise<void> {
     if (!subscription) {
-      this.logger.warn(`WEB_PUSH skipped for user ${userId}: missing subscription config`);
+      this.logger.warn(
+        `WEB_PUSH skipped for user ${userId}: missing subscription config`,
+      );
       return;
     }
 
     const publicKey = process.env.WEB_PUSH_PUBLIC_KEY;
     const privateKey = process.env.WEB_PUSH_PRIVATE_KEY;
-    const contactEmail = process.env.WEB_PUSH_CONTACT_EMAIL || 'mailto:admin@example.com';
+    const contactEmail =
+      process.env.WEB_PUSH_CONTACT_EMAIL || 'mailto:admin@example.com';
 
     if (!publicKey || !privateKey) {
-      this.logger.warn('WEB_PUSH keys not configured; set WEB_PUSH_PUBLIC_KEY and WEB_PUSH_PRIVATE_KEY to enable Web Push');
+      this.logger.warn(
+        'WEB_PUSH keys not configured; set WEB_PUSH_PUBLIC_KEY and WEB_PUSH_PRIVATE_KEY to enable Web Push',
+      );
       return;
     }
 
     try {
       webpush.setVapidDetails(contactEmail, publicKey, privateKey);
-
+      const channelName = notification.channel?.name || null;
       const payload = {
-        title: notification.title,
+        title: channelName
+          ? `${notification.title} (${channelName})`
+          : notification.title,
         body: notification.message,
         data: {
           notificationId: notification.id,

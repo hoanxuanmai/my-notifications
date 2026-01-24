@@ -23,7 +23,10 @@ export class UserDeliveryChannelsRepository extends BaseRepository<UserDeliveryC
     }) as any;
   }
 
-  async upsertWebPushChannel(userId: string, subscription: any): Promise<UserDeliveryChannel> {
+  async upsertWebPushChannel(
+    userId: string,
+    subscription: any,
+  ): Promise<UserDeliveryChannel> {
     // Each device (endpoint) must be associated with a single user.
     // If the same endpoint is registered by another user, remove old mappings
     // and keep only the new mapping for the current user.
@@ -76,6 +79,18 @@ export class UserDeliveryChannelsRepository extends BaseRepository<UserDeliveryC
         type: DeliveryChannelType.WEB_PUSH as any,
         config: subscription,
       },
+    }) as any;
+  }
+
+  async findWebPushByUserIdWithFilter(userId: string) {
+    const where: any = {
+      userId,
+      isActive: true,
+      type: DeliveryChannelType.WEB_PUSH as any,
+    };
+    return this.model.findMany({
+      where,
+      orderBy: { updatedAt: 'desc' },
     }) as any;
   }
 }

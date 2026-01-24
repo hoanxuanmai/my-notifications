@@ -13,6 +13,13 @@ interface User {
   avatar?: string | null;
 }
 
+interface RegisterInput {
+  username: string;
+  email: string;
+  password: string;
+  name: string;
+}
+
 interface AuthState {
   user: User | null;
   token: string | null;
@@ -20,6 +27,7 @@ interface AuthState {
   error: string | null;
   login: (emailOrUsername: string, password: string) => Promise<void>;
   logout: () => void;
+  register: (input: RegisterInput) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => {
@@ -51,21 +59,9 @@ export const useAuthStore = create<AuthState>((set) => {
     }
   }
 
-  return {
-    user: initialUser,
-    token: initialToken,
-    loading: false,
-    error: null,
-
-    async login(emailOrUsername: string, password: string) {
-      set({ loading: true, error: null });
-      try {
-        const res = await client.post('/auth/login', {
-          emailOrUsername,
-          password,
-        });
-
-        const { access_token, user } = res.data;
+  const setAuth = (data: { access_token: string; user: User }) => {
+      console.log(data)
+      const { access_token, user } = data;
 
         if (typeof window !== 'undefined') {
           localStorage.setItem('auth_token', access_token);
@@ -80,12 +76,44 @@ export const useAuthStore = create<AuthState>((set) => {
         if (typeof window !== 'undefined') {
           wsService.subscribeUser(user.id);
         }
+        set({ user, token: access_token, loading: false, error: null });
+  };
 
-        set({ user, token: access_token, loading: false });
+  return {
+    user: initialUser,
+    token: initialToken,
+    loading: false,
+    error: null,
+
+    async login(emailOrUsername: string, password: string) {
+      set({ loading: true, error: null });
+      try {
+        const res = await client.post('/auth/login', {
+          emailOrUsername,
+          password,
+        });
+
+        setAuth(res.data);
       } catch (err: any) {
         set({
           loading: false,
           error: err?.response?.data?.message || 'Login failed',
+        });
+        throw err;
+      }
+    },
+
+    
+
+    async register(input) {
+      set({ loading: true, error: null });
+      try {
+        const res = await client.post('/auth/register', input);
+        setAuth(res.data);
+      } catch (err: any) {
+        set({
+          loading: false,
+          error: err?.response?.data?.message || 'Registration failed',
         });
         throw err;
       }

@@ -5,6 +5,7 @@ import type {
   NotificationResponse,
   CreateChannelDto,
 } from '@/types';
+import { get } from 'http';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
 
@@ -136,6 +137,25 @@ export const pushApi = {
   subscribe: (subscription: any): Promise<{ id: string }> => {
     return apiClient.post('/push/subscribe', subscription).then((res) => res.data);
   },
+};
+
+// User me data
+export const userMeApi = {
+  getMe: (): Promise<any> => {
+    return apiClient.get('/users/me').then((res) => res.data);
+  },
+  getSettings: (): Promise<any> => {
+    return apiClient.get('/users/me/settings').then((res) => res.data);
+  },
+  updateSettings: (settings: any): Promise<any> => {
+    return apiClient.put('/users/me/settings', settings).then((res) => res.data);
+  },
+  getWebPushDevices: (): Promise<any[]> => {
+    return apiClient.get('/users/me/webpush-devices').then((res) => res.data);
+  },
+  deleteWebPushDevice: (id: string): Promise<void> => {
+    return apiClient.delete(`/users/me/webpush-devices/${id}`);
+  }
 };
 
 export interface NotificationQueryDto {

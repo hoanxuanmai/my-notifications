@@ -39,27 +39,25 @@ self.addEventListener('push', function (event) {
       // Đóng notification cũ (nếu có) để thay bằng bản mới
       existing.forEach((n) => n.close());
 
-      const summaryTitle = stack.length === 1
-        ? title
-        : `${stack.length} new notifications`;
-
-      const summaryBody = stack
-        .map((item, index) => `${index + 1}. ${item.body}`)
-        .join('\n');
-
-      const options = {
-        body: summaryBody,
-        tag,
-        data: {
-          ...extraData,
-          stack,
-        },
-        // icon / badge tuỳ chỉnh nếu cần
-        // icon: '/icons/icon-192x192.png',
-        // badge: '/icons/badge-72x72.png',
-      };
-
-      return self.registration.showNotification(summaryTitle, options);
+      // Hiển thị từng notification riêng biệt theo stack
+      await Promise.all(
+        stack.map((item, idx) => {
+          const options = {
+            body: item.body,
+            tag: tag + '-' + idx,
+            data: {
+              ...extraData,
+              stack,
+              receivedAt: item.receivedAt,
+            },
+            // icon / badge tuỳ chỉnh nếu cần
+            // icon: '/icons/icon-192x192.png',
+            // badge: '/icons/badge-72x72.png',
+          };
+          return self.registration.showNotification(item.title || title, options);
+        })
+      );
+      return;
     })(),
   );
 });

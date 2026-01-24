@@ -3,11 +3,14 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth-store';
+import dynamic from 'next/dynamic';
+const WebpushDevices = dynamic(() => import("@/components/settings/WebpushDevices"));
 
 export default function SettingsPage() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const [isMounted, setIsMounted] = useState(false);
+  const [showDevices, setShowDevices] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -46,7 +49,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 px-3 py-4 sm:p-6">
+    <main className="min-h-screen bg-gray-50 px-3 py-4 sm:p-6  dark:text-gray-500">
           <div className="max-w-md mx-auto bg-white shadow-md rounded-lg p-4 sm:p-6">
         {/* Top navigator-style header */}
         <div className="flex items-center gap-3 mb-4">
@@ -73,7 +76,8 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="space-y-3">
+
+        <div className="space-y-3 mt-8">
           <button
             type="button"
             onClick={handleLogout}
@@ -81,6 +85,17 @@ export default function SettingsPage() {
           >
             Sign out
           </button>
+        </div>
+        <div className="w-full mt-4">
+          {!showDevices
+            && <button
+              type="button"
+              className="w-full mb-4 inline-flex items-center justify-center rounded-md bg-blue-500 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-600"
+              onClick={() => setShowDevices((v) => !v)}
+            >
+              {showDevices ? 'Hide Devices' : 'Show Devices'}
+            </button>}
+          {showDevices && <WebpushDevices />}
         </div>
       </div>
     </main>

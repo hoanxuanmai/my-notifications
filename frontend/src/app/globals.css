@@ -2,18 +2,102 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Design tokens: HSL components for opacity-aware Tailwind usage */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Core colors (HSL components, no hsl()) */
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+
+  --secondary: 210 40% 96.1%;
+
+@layer components {
+  /* Scoped button styles to avoid affecting icon/close buttons */
+  .btn {
+    @apply inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-primary {
+    @apply btn bg-primary text-primary-foreground hover:bg-primary/90;
+  }
+  .btn-secondary {
+    @apply btn bg-secondary text-secondary-foreground hover:bg-secondary/80;
+  }
+  .btn-outline {
+    @apply btn border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground;
+  }
+  .btn-destructive {
+    @apply btn bg-destructive text-destructive-foreground hover:bg-destructive/90;
+  }
+  .btn-icon {
+    @apply inline-flex items-center justify-center rounded-full bg-muted text-foreground hover:bg-muted/80 w-8 h-8;
+  }
+  .btn-close {
+    @apply inline-flex items-center justify-center rounded-full bg-background text-destructive hover:text-destructive/80 border border-input w-6 h-6 leading-none;
+  }
+}
+  --secondary-foreground: 222.2 47.4% 11.2%;
+
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 222.2 84% 4.9%;
+
+  /* Radii */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  margin: 0;
-  min-height: 100vh;
-  overflow-x: hidden;
+/* Auto dark scheme overrides */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: Arial, Helvetica, sans-serif;
+    margin: 0;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  button {
+    @apply inline-flex items-center justify-center rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  input,
+  textarea,
+  select {
+    @apply w-full rounded-md border border-input bg-background px-3 py-2 text-foreground shadow-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring;
+  }
 }
 
 @layer utilities {
