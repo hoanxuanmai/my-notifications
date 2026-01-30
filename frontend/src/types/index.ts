@@ -13,6 +13,7 @@ export enum NotificationPriority {
   urgent = 'urgent',
 }
 
+export type ChannelTemplate = 'default' | 'slack';
 export interface Channel {
   id: string;
   userId?: string;
@@ -20,7 +21,7 @@ export interface Channel {
   description?: string;
   webhookToken: string;
   apiKey?: string;
-  settings: Record<string, any>;
+  settings: Record<string, any> & { template?: ChannelTemplate };
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

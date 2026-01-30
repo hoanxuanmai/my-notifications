@@ -4,6 +4,8 @@ import { useRef, useState } from 'react';
 import type { Channel } from '@/types';
 import { useNotificationsStore } from '@/stores/notifications-store';
 import { format } from 'date-fns';
+import NotificationItem from './NotificationItem';
+import React, { useState as useLocalState } from 'react';
 import { NotificationType, NotificationPriority } from '@/types';
 import ChannelSettingsModal from '@/components/channels/ChannelSettingsModal';
 
@@ -21,6 +23,7 @@ const priorityColors = {
   [NotificationPriority.high]: 'text-orange-500',
   [NotificationPriority.urgent]: 'text-red-500',
 };
+
 
 export default function NotificationsList() {
   const {
@@ -156,48 +159,15 @@ export default function NotificationsList() {
             No notifications yet
           </div>
         ) : (
-          filteredNotifications.map((notification) => (
-            <div
+            filteredNotifications.map((notification, idx) => (
+              <NotificationItem
               key={notification.id}
-              onClick={() => !notification.read && markAsRead(notification.id)}
-              className={`p-3 sm:p-4 rounded border-l-4 cursor-pointer transition ${
-                notification.read
-                ? 'bg-gray-50 border-gray-200'
-                : 'bg-white border-blue-400'
-              } hover:shadow-md`}
-            >
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-medium ${typeColors[notification.type]}`}
-                    >
-                      {notification.type}
-                    </span>
-                    <span
-                      className={`text-xs font-medium ${priorityColors[notification.priority]}`}
-                    >
-                      {notification.priority}
-                    </span>
-                    {!notification.read && (
-                      <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                    )}
-                  </div>
-                  <h3 className="font-semibold mb-1 text-gray-800">{notification.title}</h3>
-                  <p className="text-sm text-gray-700 mb-2">
-                    {notification.message}
-                  </p>
-                  {!selectedChannelId && notification.channel && (
-                    <p className="text-xs text-gray-500">
-                      Channel: {notification.channel.name}
-                    </p>
-                  )}
-                  <p className="text-xs text-gray-400 mt-1">
-                    {format(new Date(notification.createdAt), 'PPp')}
-                  </p>
-                </div>
-              </div>
-            </div>
+                notification={notification}
+                isSlack={selectedChannel?.settings?.template === 'slack'}
+                markAsRead={markAsRead}
+                selectedChannelId={selectedChannelId}
+                even={idx % 2 === 0}
+              />
           ))
         )}
 
@@ -219,7 +189,7 @@ export default function NotificationsList() {
         <button
           type="button"
           onClick={scrollToTop}
-          className="absolute bottom-3 right-3 inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-700 text-white shadow-md hover:bg-gray-800"
+          className="absolute z-10 bottom-3 right-3 inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-700 text-white shadow-md hover:bg-gray-800"
           aria-label="Scroll to top"
         >
           ↑
@@ -234,4 +204,3 @@ export default function NotificationsList() {
     </div>
   );
 }
-

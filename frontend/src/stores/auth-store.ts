@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import axios from 'axios';
 import { wsService } from '@/lib/websocket';
 import { setApiAuthToken } from '@/lib/api';
+import { useNotificationsStore } from "@/stores/notifications-store";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
 
@@ -131,6 +132,8 @@ export const useAuthStore = create<AuthState>((set) => {
       // Xóa token khỏi apiClient dùng chung
       setApiAuthToken(null);
       delete client.defaults.headers.common['Authorization'];
+      // Clear selectedChannelId in notifications store
+      useNotificationsStore.getState().setSelectedChannel(null);
       set({ user: null, token: null, error: null });
     },
   };

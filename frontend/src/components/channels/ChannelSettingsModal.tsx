@@ -1,7 +1,8 @@
 'use client';
 
+
 import { useEffect, useState } from 'react';
-import type { Channel } from '@/types';
+import type { Channel, ChannelTemplate } from '@/types';
 import { channelsApi } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth-store';
 import { useNotificationsStore } from '@/stores/notifications-store';
@@ -31,6 +32,29 @@ export default function ChannelSettingsModal({
   const [error, setError] = useState<string | null>(null);
   const [newUserEmail, setNewUserEmail] = useState('');
   const [copyState, setCopyState] = useState<'idle' | 'copied'>('idle');
+  const [template, setTemplate] = useState<ChannelTemplate>(channel?.settings?.template || 'default');
+
+  // Always sync template state with channel when modal opens or channel changes
+  useEffect(() => {
+    if (isOpen && channel) {
+      setTemplate(channel.settings?.template || 'default');
+    }
+  }, [isOpen, channel]);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+
+  const handleTemplateChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newTemplate = e.target.value as ChannelTemplate;
+    setTemplate(newTemplate);
+    setSavingTemplate(true);
+    try {
+      if (channel) {
+        await channelsApi.update(channel.id, { settings: { ...channel.settings, template: newTemplate } });
+        fetchChannels();
+      }
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
 
   useEffect(() => {
     if (!isOpen || !channel) return;
@@ -119,6 +143,19 @@ export default function ChannelSettingsModal({
         </div>
 
         <div className="space-y-4">
+          <div>
+            <h3 className="text-sm font-medium mb-1">Template</h3>
+            <select
+              value={template}
+              onChange={handleTemplateChange}
+              className="border border-gray-200 rounded px-2 py-1 text-xs bg-white"
+              disabled={savingTemplate}
+            >
+              <option value="default">Default</option>
+              <option value="slack">Slack</option>
+            </select>
+            {savingTemplate && <span className="ml-2 text-xs text-gray-400">Saving…</span>}
+          </div>
           <div>
             <h3 className="text-sm font-medium mb-1">Webhook URL</h3>
             <div className="flex items-center gap-2">
