@@ -19,7 +19,6 @@ export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   // Use global alert store
   const showAlert = useAlertStore((s) => s.showAlert);
-
   const {
     channels,
     unreadByChannelId,
@@ -28,7 +27,18 @@ export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
     createChannel,
     deleteChannel,
     loading,
+    fetchChannels,
   } = useNotificationsStore();
+  const [reloading, setReloading] = useState(false);
+
+  const handleReload = async () => {
+    setReloading(true);
+    try {
+      await fetchChannels();
+    } finally {
+      setReloading(false);
+    }
+  };
 
   const sortedChannels = useMemo(() => {
     return [...channels]
@@ -71,9 +81,31 @@ export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
   return (
     <div className="bg-white rounded-xl shadow-lg p-3 sm:p-4 flex flex-col h-full border border-gray-200">
       <div className="flex items-center justify-between gap-2 mb-3 pb-1 border-b border-gray-200">
-        <div className="min-w-0">
-          <h2 className="text-sm sm:text-base font-semibold text-gray-900">
+        <div className="min-w-0 flex flex-col items-center">
+          <h2 className="text-sm sm:text-base font-semibold text-gray-900 flex items-center gap-1">
             Channels
+            <button
+              type="button"
+              onClick={handleReload}
+              className="ml-1 p-1 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              aria-label="Reload channels"
+              disabled={loading || reloading}
+            >
+              {/* Heroicons Arrow Path */}
+              <svg
+                className={`w-5 h-5 text-gray-500 ${loading || reloading ? 'animate-spin' : ''}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4.5 12a7.5 7.5 0 0113.5-5.303M19.5 12a7.5 7.5 0 01-13.5 5.303m0 0V15m0 2.303H7.5M19.5 12V9m0 0h-2.25"
+                />
+              </svg>
+            </button>
           </h2>
           <p className="mt-0.5 text-[11px] text-gray-500 hidden sm:block">
             Manage your notification groups

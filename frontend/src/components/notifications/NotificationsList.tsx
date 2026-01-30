@@ -34,7 +34,17 @@ export default function NotificationsList() {
     hasMoreByChannelId,
     loadingMore,
     loadMoreNotifications,
+    fetchNotifications,
   } = useNotificationsStore();
+  const [reloading, setReloading] = useState(false);
+  const handleReload = async () => {
+    setReloading(true);
+    try {
+      await fetchNotifications(selectedChannelId || undefined);
+    } finally {
+      setReloading(false);
+    }
+  };
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -76,8 +86,30 @@ export default function NotificationsList() {
       <div className="flex items-start justify-between gap-3 flex-wrap mb-3 pb-1 border-b border-gray-200">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <h2 className="text-lg sm:text-xl font-semibold truncate" title={title}>
+            <h2 className="text-lg sm:text-xl font-semibold truncate flex items-center gap-1" title={title}>
               {title}
+              <button
+                type="button"
+                onClick={handleReload}
+                className="ml-1 p-1 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                aria-label="Reload notifications"
+                disabled={loading || reloading}
+              >
+                {/* Heroicons Arrow Path */}
+                <svg
+                  className={`w-5 h-5 text-gray-500 ${loading || reloading ? 'animate-spin' : ''}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4.5 12a7.5 7.5 0 0113.5-5.303M19.5 12a7.5 7.5 0 01-13.5 5.303m0 0V15m0 2.303H7.5M19.5 12V9m0 0h-2.25"
+                  />
+                </svg>
+              </button>
             </h2>
             {selectedChannel && (
               <button

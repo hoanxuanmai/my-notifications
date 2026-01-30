@@ -6,6 +6,7 @@ const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3000';
 class WebSocketService {
   private socket: Socket | null = null;
   private listeners: Map<string, Set<Function>> = new Map();
+  private subscribedChannels: Set<string> = new Set();
 
   connect() {
     if (this.socket?.connected) {
@@ -13,14 +14,17 @@ class WebSocketService {
     }
 
     this.socket = io(`${WS_URL}/notifications`, {
-      // Use long polling only to avoid WebSocket timeout issues
-      transports: ['polling'],
-      upgrade: false,
+      transports: ['websocket'],
+      upgrade: true,
       timeout: 60000,
     });
 
     this.socket.on('connect', () => {
       console.log('WebSocket connected');
+      // Re-subscribe all channels after reconnect
+      this.subscribedChannels.forEach((channelId) => {
+        this.socket?.emit('subscribe:channel', { channelId });
+      });
     });
 
     this.socket.on('connect_error', (error) => {
@@ -79,14 +83,15 @@ class WebSocketService {
   }
 
   subscribeChannel(channelId: string) {
+    this.subscribedChannels.add(channelId);
     if (!this.socket?.connected) {
       this.connect();
     }
-
     this.socket?.emit('subscribe:channel', { channelId });
   }
 
   unsubscribeChannel(channelId: string) {
+    this.subscribedChannels.delete(channelId);
     this.socket?.emit('unsubscribe:channel', { channelId });
   }
 
@@ -119,4 +124,18 @@ class WebSocketService {
 }
 
 export const wsService = new WebSocketService();
+
+// Auto reconnect on tab visible or network online
+if (typeof window !== 'undefined') {
+  window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && !wsService.isConnected()) {
+      wsService.connect();
+    }
+  });
+  window.addEventListener('online', () => {
+    if (!wsService.isConnected()) {
+      wsService.connect();
+    }
+  });
+}
 
