@@ -35,8 +35,8 @@ export default function NotificationItem({ notification, isSlack, markAsRead, se
       onClick={() => !notification.read && markAsRead(notification.id)}
       className={`relative p-3 sm:p-4 rounded border-l-4 cursor-pointer transition w-full max-w-full ${
         notification.read
-          ? 'bg-gray-50'
-          : 'bg-white'
+          ? 'bg-gray-50 dark:bg-gray-900 dark:text-gray-100'
+          : 'bg-white dark:bg-gray-900 dark:text-gray-100'
       } ${borderColor} hover:shadow-md`}
     >
       <NotificationMessageWithToggle
@@ -111,7 +111,7 @@ function NotificationMessageWithToggle({ notification, isSlack, headContent, tit
           </button>
         )}
       </div>
-      <div className={(tooLong && !expanded ? 'max-h-40 overflow-hidden relative ' : '') + 'break-words w-full max-w-full'}>
+      <div className={(tooLong && !expanded ? 'max-h-40 overflow-hidden relative ' : '') + 'break-words w-full max-w-full bg-transparent dark:bg-gray-900 dark:text-gray-100'}>
         {isSlack ? parseSlackMessage(notification) : notification.message}
       </div>
       {tooLong && !expanded && (

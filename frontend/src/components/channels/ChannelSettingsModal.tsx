@@ -148,7 +148,7 @@ export default function ChannelSettingsModal({
             <select
               value={template}
               onChange={handleTemplateChange}
-              className="border border-gray-200 rounded px-2 py-1 text-xs bg-white"
+              className="border border-gray-200 rounded px-2 py-1 text-xs bg-white dark:bg-gray-900 dark:text-gray-100"
               disabled={savingTemplate}
             >
               <option value="default">Default</option>
@@ -162,7 +162,7 @@ export default function ChannelSettingsModal({
               <input
                 readOnly
                 value={webhookUrl}
-                className="flex-1 border border-gray-200 rounded px-2 py-1 text-xs bg-gray-50"
+                className="flex-1 border border-gray-200 rounded px-2 py-1 text-xs bg-gray-50 dark:bg-gray-900 dark:text-gray-100"
               />
               <button
                 type="button"
@@ -216,7 +216,7 @@ export default function ChannelSettingsModal({
                     placeholder="User email to add"
                     value={newUserEmail}
                     onChange={(e) => setNewUserEmail(e.target.value)}
-                    className="flex-1 border border-gray-200 rounded px-2 py-1 text-xs bg-white"
+                    className="flex-1 border border-gray-200 rounded px-2 py-1 text-xs bg-white dark:bg-gray-900 dark:text-gray-100"
                   />
                   <button
                     type="button"
