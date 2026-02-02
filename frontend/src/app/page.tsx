@@ -109,7 +109,7 @@ export default function Home() {
                     .charAt(0)
                     .toUpperCase()}
                 </div>
-                <span className="hidden sm:inline text-sm font-medium text-gray-800 dark:text-gray-100 truncate max-w-[160px]">
+                  <span className="hidden sm:inline text-sm font-medium text-gray-800 truncate max-w-[160px]">
                   {user.username || user.email}
                 </span>
               </div>

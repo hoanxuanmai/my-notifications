@@ -4,11 +4,11 @@ import { parseSlackMessage } from './parseNotificationMessage';
 import { NotificationType, NotificationPriority, Notification } from '@/types';
 
 const typeColors = {
-  [NotificationType.info]: 'bg-blue-50 text-blue-700 border border-blue-100',
-  [NotificationType.success]: 'bg-green-50 text-green-700 border border-green-100',
-  [NotificationType.warning]: 'bg-yellow-50 text-yellow-700 border border-yellow-100',
-  [NotificationType.error]: 'bg-red-50 text-red-700 border border-red-100',
-  [NotificationType.debug]: 'bg-gray-50 text-gray-700 border border-gray-200',
+  [NotificationType.info]: 'bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-900 dark:text-blue-100 dark:border-blue-700',
+  [NotificationType.success]: 'bg-green-50 text-green-700 border border-green-100 dark:bg-green-900 dark:text-green-100 dark:border-green-700',
+  [NotificationType.warning]: 'bg-yellow-50 text-yellow-700 border border-yellow-100 dark:bg-yellow-900 dark:text-yellow-100 dark:border-yellow-700',
+  [NotificationType.error]: 'bg-red-50 text-red-700 border border-red-100 dark:bg-red-900 dark:text-red-100 dark:border-red-700',
+  [NotificationType.debug]: 'bg-gray-50 text-gray-700 border border-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600',
 };
 
 const priorityColors = {
@@ -28,15 +28,15 @@ interface NotificationItemProps {
 
 export default function NotificationItem({ notification, isSlack, markAsRead, selectedChannelId, even }: NotificationItemProps) {
   const borderColor = even
-    ? (notification.read ? 'border-l-blue-200' : 'border-l-blue-500')
-    : (notification.read ? 'border-l-pink-200' : 'border-l-pink-500');
+    ? (notification.read ? 'border-l-blue-200 dark:border-l-blue-700' : 'border-l-blue-500 dark:border-l-blue-400')
+    : (notification.read ? 'border-l-pink-200 dark:border-l-pink-700' : 'border-l-pink-500 dark:border-l-pink-400');
   return (
     <div
       onClick={() => !notification.read && markAsRead(notification.id)}
       className={`relative p-3 sm:p-4 rounded border-l-4 cursor-pointer transition w-full max-w-full ${
         notification.read
           ? 'bg-gray-50 dark:bg-gray-900 dark:text-gray-100'
-          : 'bg-white dark:bg-gray-900 dark:text-gray-100'
+        : 'bg-white dark:bg-gray-800 dark:text-gray-100'
       } ${borderColor} hover:shadow-md`}
     >
       <NotificationMessageWithToggle

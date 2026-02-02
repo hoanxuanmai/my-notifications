@@ -35,7 +35,7 @@ function renderMarkdown(text: string): JSX.Element[] {
     }
     // Code block
     elements.push(
-      <pre key={elements.length} className="bg-gray-100 text-xs rounded p-2 mt-1 overflow-x-auto whitespace-pre-wrap text-gray-700">
+      <pre key={elements.length} className="bg-gray-100 text-xs rounded p-2 mt-1 overflow-x-auto whitespace-pre-wrap text-gray-700 dark:bg-gray-800 dark:text-gray-100">
         {match[1]}
       </pre>
     );

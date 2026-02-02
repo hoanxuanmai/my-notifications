@@ -4,6 +4,8 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  // Disable ETag to prevent 304 Not Modified responses
+  app.getHttpAdapter().getInstance().disable('etag');
 
   // Redirect root '/' to FRONTEND_URL
   app.use('/', (req, res, next) => {
