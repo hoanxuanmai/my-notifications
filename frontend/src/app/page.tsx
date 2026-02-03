@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useNotificationsStore } from '@/stores/notifications-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { initWebPush } from '@/lib/webpush';
@@ -14,9 +14,16 @@ export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   // Initialize auth-store to restore from localStorage and subscribe user
   const { user, logout } = useAuthStore();
-  const { fetchChannels, fetchNotifications } = useNotificationsStore();
+  const {
+    fetchChannels,
+    fetchNotifications,
+    channels,
+    setSelectedChannel,
+    selectedChannelId,
+  } = useNotificationsStore();
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   // Avoid mismatch between server and client rendering
@@ -40,6 +47,24 @@ export default function Home() {
     fetchChannels();
     fetchNotifications();
   }, [fetchChannels, fetchNotifications, isMounted, user]);
+
+  // If URL has ?channelId, auto-select that channel (when available)
+  useEffect(() => {
+    if (!isMounted) return;
+    if (!user) return;
+
+    const channelIdFromUrl = searchParams.get('channelId');
+    if (!channelIdFromUrl) return;
+
+    if (!channels || channels.length === 0) return;
+
+    const exists = channels.some((ch) => ch.id === channelIdFromUrl);
+    if (!exists) return;
+
+    if (selectedChannelId === channelIdFromUrl) return;
+
+    setSelectedChannel(channelIdFromUrl);
+  }, [isMounted, user, searchParams, channels, selectedChannelId, setSelectedChannel]);
 
   // Listen for global unauthorized events (401) to force logout
   // and show the login modal instead of redirecting.

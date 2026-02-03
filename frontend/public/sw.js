@@ -1,3 +1,13 @@
+self.addEventListener('install', (event) => {
+  // Activate updated SW immediately without waiting for old one to be closed
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  // Take control of all clients as soon as the SW activates
+  event.waitUntil(self.clients.claim());
+});
+
 self.addEventListener('push', function (event) {
   let data = {};
   if (event.data) {
@@ -64,7 +74,18 @@ self.addEventListener('push', function (event) {
 
 self.addEventListener('notificationclick', function (event) {
   event.notification.close();
-  const targetUrl = '/';
+  let targetUrl = '/';
+
+  try {
+    const data = event.notification && event.notification.data ? event.notification.data : {};
+    if (data && data.channelId) {
+      const encodedChannelId = encodeURIComponent(data.channelId);
+      targetUrl = '/?channelId=' + encodedChannelId;
+    }
+  } catch (e) {
+    // Fallback to default URL if anything goes wrong
+    targetUrl = '/';
+  }
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {

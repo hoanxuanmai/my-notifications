@@ -1,6 +1,7 @@
 import { pushApi } from '@/lib/api';
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+const SW_VERSION = process.env.NEXT_PUBLIC_SW_VERSION || '1';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -35,8 +36,8 @@ export async function initWebPush(): Promise<void> {
       return;
     }
 
-    // Register service worker
-    const registration = await navigator.serviceWorker.register('/sw.js');
+    // Register service worker with versioned URL to force updates when changed
+    const registration = await navigator.serviceWorker.register(`/sw.js?v=${SW_VERSION}`);
 
     // Use existing subscription if available
     let subscription = await registration.pushManager.getSubscription();
