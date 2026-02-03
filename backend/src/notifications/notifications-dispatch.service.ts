@@ -1,16 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { NotificationsGateway } from '../websocket/notifications.gateway';
 import { ChannelMembersRepository } from '../common/repositories/channel-members.repository';
 import { UserDeliveryChannelsRepository } from '../common/repositories/user-delivery-channels.repository';
 import { DeliveryChannelType } from '../common/enums/delivery-channel.enum';
-import { Notification, NotificationWithChannel } from '../common/types/database.types';
+import {
+  Notification,
+  NotificationWithChannel,
+} from '../common/types/database.types';
 import * as webpush from 'web-push';
+import { SocketEmitter } from '../websocket/socket-emitter.service';
 
 export interface DeliveryJobData {
   notificationId: string;
   channelId: string;
   userId: string;
   type: DeliveryChannelType;
+  // Optional link back to the UserDeliveryChannel row, when applicable
+  deliveryChannelId?: string;
   config: Record<string, any>;
   notification: Notification;
 }
@@ -22,7 +27,7 @@ export class NotificationsDispatchService {
   constructor(
     private readonly channelMembersRepository: ChannelMembersRepository,
     private readonly userDeliveryChannelsRepository: UserDeliveryChannelsRepository,
-    private readonly notificationsGateway: NotificationsGateway,
+    private readonly socketEmitter: SocketEmitter,
   ) {}
 
   /**
@@ -48,45 +53,29 @@ export class NotificationsDispatchService {
     for (const userId of userIds) {
       const deliveryChannels =
         await this.userDeliveryChannelsRepository.findActiveByUserId(userId);
-
+      // Always add WebSocket delivery as fallback/default
+      jobs.push({
+        notificationId: notification.id,
+        channelId,
+        userId,
+        type: DeliveryChannelType.WEB_SOCKET,
+        config: {},
+        notification,
+      });
       for (const dc of deliveryChannels) {
         jobs.push({
           notificationId: notification.id,
           channelId,
           userId,
           type: dc.type as DeliveryChannelType,
+          deliveryChannelId: dc.id,
           config: (dc as any).config || {},
-          notification: notification,
+          notification,
         });
       }
     }
 
     return jobs;
-  }
-
-  /**
-   * Dispatch WebSocket notifications for all target users of a given notification.
-   * This is intended to be called only from the backend API process,
-   * so workers can process other delivery channels independently.
-   */
-  async dispatchWebSocketForNotification(
-    notification: NotificationWithChannel,
-  ): Promise<void> {
-    const channelId = notification.channel.id;
-
-    // Determine list of target users: owner + members
-    const ownerId = notification.channel.userId;
-    const members =
-      await this.channelMembersRepository.findMembersByChannelId(channelId);
-    const userIds = new Set<string>();
-    userIds.add(ownerId);
-    for (const m of members) {
-      userIds.add(m.userId);
-    }
-
-    for (const userId of userIds) {
-      await this.dispatchViaWebSocket(channelId, userId, notification);
-    }
   }
 
   /**
@@ -108,7 +97,7 @@ export class NotificationsDispatchService {
         );
         break;
       case DeliveryChannelType.WEB_PUSH:
-        await this.dispatchViaWebPush(job.userId, notification, job.config);
+        await this.dispatchViaWebPush(job, notification);
         break;
       default:
         this.logger.warn(`Unsupported delivery channel type: ${job.type}`);
@@ -129,15 +118,18 @@ export class NotificationsDispatchService {
         userId,
         channelId,
       );
-    this.notificationsGateway.emitNewNotificationToUser(userId, notification);
+
+    // Emit via Redis so that the actual Socket.IO server process
+    // can broadcast to connected clients.
+    this.socketEmitter.emitToUser(userId, 'notification:new', notification);
   }
 
   // Placeholder for web push: currently only logs, actual sending (web-push) will be implemented later
   private async dispatchViaWebPush(
-    userId: string,
+    job: DeliveryJobData,
     notification: Notification,
-    subscription: any,
   ): Promise<void> {
+    const { userId, config: subscription, deliveryChannelId } = job;
     if (!subscription) {
       this.logger.warn(
         `WEB_PUSH skipped for user ${userId}: missing subscription config`,
@@ -160,11 +152,14 @@ export class NotificationsDispatchService {
     try {
       webpush.setVapidDetails(contactEmail, publicKey, privateKey);
       const channelName = notification.channel?.name || null;
+      const slackInfo = this.isSlackNotification(notification);
       const payload = {
-        title: channelName
-          ? `${notification.title} (${channelName})`
-          : notification.title,
-        body: notification.message,
+        title: slackInfo
+          ? `${slackInfo.title} (${channelName})`
+          : channelName
+            ? `${notification.title} (${channelName})`
+            : notification.title,
+        body: slackInfo ? slackInfo.message : notification.message,
         data: {
           notificationId: notification.id,
           channelId: notification.channelId,
@@ -176,11 +171,43 @@ export class NotificationsDispatchService {
       this.logger.debug(
         `WEB_PUSH sent to user ${userId} for channel ${notification.channelId}: ${notification.title}`,
       );
+
+      if (deliveryChannelId) {
+        await this.userDeliveryChannelsRepository.resetDeliveryFailures(
+          deliveryChannelId,
+        );
+      }
     } catch (error) {
       this.logger.error(
         `Failed to send WEB_PUSH to user ${userId} for channel ${notification.channelId}: ${notification.title}`,
         error as any,
       );
+
+      if (deliveryChannelId) {
+        const disabled =
+          await this.userDeliveryChannelsRepository.registerDeliveryFailure(
+            deliveryChannelId,
+            5,
+          );
+        if (disabled) {
+          this.logger.warn(
+            `WEB_PUSH delivery channel ${deliveryChannelId} deactivated after 5 consecutive failures`,
+          );
+        }
+      }
     }
+  }
+
+  isSlackNotification(
+    notification: Notification,
+  ): null | { title: string; message: string } {
+    const data = notification.metadata;
+    if (data && data.attachments) {
+      return {
+        title: data.username ?? 'Slack Notification',
+        message: String(data.attachments[0]?.text || notification.message),
+      };
+    }
+    return null;
   }
 }

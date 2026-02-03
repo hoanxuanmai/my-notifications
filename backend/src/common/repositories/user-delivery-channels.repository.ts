@@ -93,4 +93,67 @@ export class UserDeliveryChannelsRepository extends BaseRepository<UserDeliveryC
       orderBy: { updatedAt: 'desc' },
     }) as any;
   }
+
+  /**
+   * Increase failure counter for a delivery channel stored in the JSON config
+   * and deactivate it once it reaches the given maxFailures threshold.
+   * Returns true if the channel was deactivated.
+   */
+  async registerDeliveryFailure(
+    deliveryChannelId: string,
+    maxFailures = 5,
+  ): Promise<boolean> {
+    const record = (await this.model.findUnique({
+      where: { id: deliveryChannelId },
+    })) as any;
+
+    if (!record) {
+      return false;
+    }
+
+    const config = (record.config || {}) as any;
+    const current = Number(config.failCount || 0);
+    const next = current + 1;
+    config.failCount = next;
+
+    const shouldDeactivate = next >= maxFailures;
+
+    await this.model.update({
+      where: { id: deliveryChannelId },
+      data: {
+        config,
+        ...(shouldDeactivate ? { isActive: false } : {}),
+      },
+    });
+
+    return shouldDeactivate;
+  }
+
+  /**
+   * Reset the failure counter for a delivery channel after a successful send.
+   */
+  async resetDeliveryFailures(deliveryChannelId: string): Promise<void> {
+    const record = (await this.model.findUnique({
+      where: { id: deliveryChannelId },
+    })) as any;
+
+    if (!record) {
+      return;
+    }
+
+    const config = (record.config || {}) as any;
+
+    if (!config.failCount) {
+      return;
+    }
+
+    delete config.failCount;
+
+    await this.model.update({
+      where: { id: deliveryChannelId },
+      data: {
+        config,
+      },
+    });
+  }
 }

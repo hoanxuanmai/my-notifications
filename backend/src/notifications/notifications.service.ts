@@ -11,6 +11,11 @@ import { NotificationsGateway } from '../websocket/notifications.gateway';
 import { NotificationsDispatchService } from './notifications-dispatch.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import {
+  NOTIFICATIONS_DISPATCH_QUEUE,
+  NOTIFICATIONS_DISPATCH_JOB_DISPATCH,
+  NOTIFICATIONS_DISPATCH_JOB_WEBHOOK,
+} from './notifications.queue-constants';
 
 @Injectable()
 export class NotificationsService {
@@ -20,11 +25,14 @@ export class NotificationsService {
     private readonly channelMembersRepository: ChannelMembersRepository,
     private readonly notificationsGateway: NotificationsGateway,
     private readonly notificationsDispatchService: NotificationsDispatchService,
-    @InjectQueue('notifications-dispatch')
+    @InjectQueue(NOTIFICATIONS_DISPATCH_QUEUE)
     private readonly notificationsDispatchQueue: Queue,
   ) {}
 
-  async create(channelId: string, createNotificationDto: CreateNotificationDto) {
+  async create(
+    channelId: string,
+    createNotificationDto: CreateNotificationDto
+  ) {
     const expiresAt = addMonths(new Date(), 1);
 
     const notification = await this.notificationsRepository.create(
@@ -48,12 +56,9 @@ export class NotificationsService {
       },
     );
 
-    // Emit WebSocket notifications directly from the backend process
-    await this.notificationsDispatchService.dispatchWebSocketForNotification(notification as any);
-
-    // Push dispatch job to queue to handle asynchronously
+    // Push dispatch job to queue to handle asynchronously (including WebSocket via workers)
     await this.notificationsDispatchQueue.add(
-      'dispatch',
+      NOTIFICATIONS_DISPATCH_JOB_DISPATCH,
       {
         notificationId: notification.id,
       },
@@ -68,6 +73,25 @@ export class NotificationsService {
     );
 
     return notification;
+  }
+
+  async enqueueWebhook(
+    webhookToken: string,
+    body: any,
+    headers: Record<string, string>,
+  ): Promise<void> {
+    await this.notificationsDispatchQueue.add(
+      NOTIFICATIONS_DISPATCH_JOB_WEBHOOK,
+      { webhookToken, body, headers },
+      {
+        removeOnComplete: true,
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 1000,
+        },
+      },
+    );
   }
 
   async findAll(query: NotificationQueryDto, userId: string) {

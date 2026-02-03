@@ -7,6 +7,10 @@ import { RepositoriesModule } from '../common/repositories/repositories.module';
 import { NotificationsDispatchService } from './notifications-dispatch.service';
 import { NotificationsDispatchProcessor } from './notifications-dispatch.processor';
 import { NotificationsDeliveryProcessor } from './notifications-delivery.processor';
+import {
+  NOTIFICATIONS_DISPATCH_QUEUE,
+  NOTIFICATIONS_DELIVERY_QUEUE,
+} from './notifications.queue-constants';
 
 @Module({
   imports: [
@@ -14,10 +18,10 @@ import { NotificationsDeliveryProcessor } from './notifications-delivery.process
     NotificationsGatewayModule,
     BullModule.registerQueue(
       {
-        name: 'notifications-dispatch',
+        name: NOTIFICATIONS_DISPATCH_QUEUE,
       },
       {
-        name: 'notifications-delivery',
+        name: NOTIFICATIONS_DELIVERY_QUEUE,
       },
     ),
   ],

@@ -6,9 +6,12 @@ import {
   SubscribeMessage,
   MessageBody,
   ConnectedSocket,
+  OnGatewayInit,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
+import { createAdapter } from '@socket.io/redis-adapter';
+import { createClient } from 'redis';
 
 @WebSocketGateway({
   cors: {
@@ -16,13 +19,41 @@ import { Logger } from '@nestjs/common';
   },
   namespace: '/notifications',
 })
-export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class NotificationsGateway
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
   @WebSocketServer()
   server: Server;
 
   private logger: Logger = new Logger('NotificationsGateway');
   private connectedClients: Map<string, Set<string>> = new Map(); // channelId -> Set of socketIds
   private userClients: Map<string, Set<string>> = new Map(); // userId -> Set of socketIds
+
+
+  async afterInit(server: Server): Promise<void> {
+    let redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    if (!redisUrl.startsWith('redis://') && !redisUrl.startsWith('rediss://')) {
+      redisUrl = `redis://${redisUrl}`;
+    }
+
+    const pubClient = createClient({ url: redisUrl });
+    const subClient = pubClient.duplicate();
+
+    await Promise.all([pubClient.connect(), subClient.connect()]);
+
+    const redisAdapterFactory = createAdapter(pubClient as any, subClient as any);
+
+    const anyServer = server as any;
+
+    // Prefer the standard Socket.IO server API if available: io.adapter(createAdapter(...))
+    if (typeof anyServer.adapter === 'function') {
+      anyServer.adapter(redisAdapterFactory);
+    } else {
+      // Fallback: create an adapter instance for the notifications namespace
+      const nsp = anyServer.of ? anyServer.of('/notifications') : anyServer;
+      const RedisAdapterClass = redisAdapterFactory as any;
+      nsp.adapter = new RedisAdapterClass(nsp);
+    }
+  }
 
   handleConnection(client: Socket) {
     this.logger.log(`Client connected: ${client.id}`);
@@ -108,28 +139,6 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
       event: 'user-subscribed',
       userId,
     };
-  }
-
-  // Emit new notification to all subscribed clients
-  emitNewNotification(channelId: string, notification: any) {
-    this.server.to(`channel:${channelId}`).emit('notification:new', notification);
-  }
-
-  // Emit new notification to a specific user (global feed)
-  emitNewNotificationToUser(userId: string, notification: any) {
-    this.server.to(`user:${userId}`).emit('notification:new', notification);
-  }
-
-  // Emit updated notification
-  emitUpdatedNotification(channelId: string, notification: any) {
-    this.server.to(`channel:${channelId}`).emit('notification:updated', notification);
-  }
-
-  // Emit deleted notification
-  emitDeletedNotification(channelId: string, notificationId: string) {
-    this.server.to(`channel:${channelId}`).emit('notification:deleted', {
-      id: notificationId,
-    });
   }
 
   // Emit unread count update for a specific channel to a specific user

@@ -18,16 +18,13 @@ export class WebhooksController {
       headers[key] = String(req.headers[key] || '');
     });
 
-    const notification = await this.webhooksService.handleWebhook(
+    // Now handleWebhook returns immediately after enqueueing, not after notification creation
+    const result = await this.webhooksService.handleWebhook(
       webhookToken,
       body,
       headers,
     );
-
-    return {
-      success: true,
-      notificationId: notification.id,
-    };
+    return result;
   }
 }
 

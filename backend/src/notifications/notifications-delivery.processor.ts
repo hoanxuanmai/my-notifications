@@ -3,11 +3,9 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { NotificationsRepository } from '../common/repositories/notifications.repository';
 import { NotificationsDispatchService, DeliveryJobData } from './notifications-dispatch.service';
-import { ChannelsRepository } from '../common/repositories/channels.repository';
-import { ChannelMembersRepository } from '../common/repositories/channel-members.repository';
-import { NotificationsGateway } from '../websocket/notifications.gateway';
+import { NOTIFICATIONS_DELIVERY_QUEUE, NOTIFICATIONS_DELIVERY_JOB_DELIVER } from './notifications.queue-constants';
 
-@Processor('notifications-delivery')
+@Processor(NOTIFICATIONS_DELIVERY_QUEUE)
 @Injectable()
 export class NotificationsDeliveryProcessor extends WorkerHost {
   private readonly logger = new Logger(NotificationsDeliveryProcessor.name);
@@ -15,19 +13,18 @@ export class NotificationsDeliveryProcessor extends WorkerHost {
   constructor(
     private readonly notificationsRepository: NotificationsRepository,
     private readonly notificationsDispatchService: NotificationsDispatchService,
-    private readonly channelsRepository: ChannelsRepository,
-    private readonly channelMembersRepository: ChannelMembersRepository,
-    private readonly notificationsGateway: NotificationsGateway,
   ) {
     super();
   }
 
   // Worker for notifications-delivery queue: execute sending per delivery channel
   async process(job: Job<DeliveryJobData>): Promise<void> {
-    const { notificationId } = job.data;
+    if (job.name !== NOTIFICATIONS_DELIVERY_JOB_DELIVER) {
+      return;
+    }
+    const data = job.data as DeliveryJobData;
+    const { notificationId, notification } = data;
 
-    const notification = await this.notificationsRepository.findById(notificationId);
-    
     if (!notification) {
       this.logger.warn(
         `Notification ${notificationId} not found when executing delivery, skipping`,
@@ -35,6 +32,6 @@ export class NotificationsDeliveryProcessor extends WorkerHost {
       return;
     }
 
-    await this.notificationsDispatchService.executeDelivery(job.data, notification as any);
+    await this.notificationsDispatchService.executeDelivery(data, notification);
   }
 }
