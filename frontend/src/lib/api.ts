@@ -96,7 +96,9 @@ export const channelsApi = {
 // Notifications API
 export const notificationsApi = {
   getAll: (query?: NotificationQueryDto): Promise<NotificationResponse> => {
-    return apiClient.get('/notifications', { params: query }).then((res) => res.data);
+    return apiClient
+      .get('/notifications', { params: { ...query, _: Date.now() } })
+      .then((res) => res.data);
   },
 
   getById: (id: string): Promise<Notification> => {

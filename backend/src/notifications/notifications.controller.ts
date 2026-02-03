@@ -12,7 +12,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
-import { CreateNotificationDto } from './dto/create-notification.dto';
 import { NotificationQueryDto } from './dto/notification-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';

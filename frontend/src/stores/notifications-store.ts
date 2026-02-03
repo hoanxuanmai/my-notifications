@@ -129,7 +129,7 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
       const response = await notificationsApi.getAll({
         channelId,
         limit: 20,
-        offset: 0,
+        offset: 0
       });
       const pageSize = 20;
 
