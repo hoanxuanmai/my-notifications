@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import ConfirmModal from '@/components/common/ConfirmModal';
 // AlertModal is now global
 import { useAlertStore } from '@/stores/alert-store';
@@ -13,6 +14,8 @@ interface ChannelsListProps {
 }
 
 export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   // Modal state for delete
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -131,6 +134,10 @@ export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
               key={channel.id}
               onClick={() => {
                 setSelectedChannel(channel.id);
+                // Update URL to reflect selected channel (removes ?channelId if present, or updates it)
+                const params = new URLSearchParams(searchParams.toString());
+                params.set('channelId', channel.id);
+                router.replace('?' + params.toString(), { scroll: false });
                 onChannelSelected?.();
               }}
               className={`p-3 rounded cursor-pointer border transition ${
