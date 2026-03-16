@@ -8,6 +8,8 @@ const WebpushNotice = dynamic(() => import('../components/common/WebpushNotice')
 export const metadata: Metadata = {
   title: 'My Notifications',
   description: 'Realtime notification system for developers',
+  manifest: '/manifest.json',
+  themeColor: '#0f172a',
 }
 
 export default function RootLayout({

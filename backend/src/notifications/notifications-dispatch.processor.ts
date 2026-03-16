@@ -2,7 +2,8 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
-import { addMonths } from 'date-fns';
+import { addDays } from 'date-fns';
+import { ConfigService } from '@nestjs/config';
 import { NotificationsRepository } from '../common/repositories/notifications.repository';
 import { ChannelsRepository } from '../common/repositories/channels.repository';
 import {
@@ -45,6 +46,7 @@ export class NotificationsDispatchProcessor extends WorkerHost {
     private readonly notificationsRepository: NotificationsRepository,
     private readonly notificationsDispatchService: NotificationsDispatchService,
     private readonly channelsRepository: ChannelsRepository,
+    private readonly configService: ConfigService,
     @InjectQueue(NOTIFICATIONS_DELIVERY_QUEUE)
     private readonly notificationsDeliveryQueue: Queue<DeliveryJobData>,
   ) {
@@ -62,7 +64,7 @@ export class NotificationsDispatchProcessor extends WorkerHost {
     job: Job<WebhookDispatchJobData>,
   ): Promise<void> {
     this.logger.log(
-      `Processing webhook dispatch job for token ${job.data.webhookToken} ${job.attemptsMade} attempts`
+      `Processing webhook dispatch job for token ${job.data.webhookToken} ${job.attemptsMade} attempts`,
     );
     const { webhookToken, body, headers } = job.data;
 
@@ -85,7 +87,9 @@ export class NotificationsDispatchProcessor extends WorkerHost {
     // Parse webhook body/headers into CreateNotificationDto-like payload
     const notificationPayload = this.parseWebhookBody(body, headers);
 
-    const expiresAt = addMonths(new Date(), 1);
+    const ttlDays =
+      this.configService.get<number>('NOTIFICATION_TTL_DAYS') || 3;
+    const expiresAt = addDays(new Date(), ttlDays);
 
     const notification = await this.notificationsRepository.create(
       {
@@ -205,7 +209,6 @@ export class NotificationsDispatchProcessor extends WorkerHost {
     payload: any,
     headers: Record<string, string>,
   ): string | null {
-
     if (!payload || typeof payload !== 'object') {
       return null;
     }

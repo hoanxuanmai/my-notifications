@@ -1,0 +1,25 @@
+<svg width="192" height="192" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="My Notifications icon small">
+  <defs>
+    <linearGradient id="bg-gradient-192" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect x="32" y="32" width="448" height="448" rx="112" fill="url(#bg-gradient-192)" />
+
+  <!-- Notification bell (simplified for small size) -->
+  <g transform="translate(156 148) scale(0.96)">
+    <path d="M40 200h160c5.523 0 10-4.477 10-10 0-8.837-4.686-16.99-12.284-21.288C186 152 180 132 180 112 180 71.817 152.183 44 112 44S44 71.817 44 112c0 20-6 40-17.716 56.712C18.686 173.01 14 181.163 14 190c0 5.523 4.477 10 10 10z" fill="#e5e7eb" />
+    <circle cx="120" cy="246" r="16" fill="#e5e7eb" />
+  </g>
+
+  <!-- Accent badge -->
+  <circle cx="356" cy="148" r="40" fill="#f97316" />
+
+  <!-- Tiny "MY" text -->
+  <text x="256" y="404" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="40" font-weight="700" fill="#e5e7eb" letter-spacing="2">
+    MY
+  </text>
+</svg>

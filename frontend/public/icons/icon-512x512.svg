@@ -1,0 +1,32 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="My Notifications icon">
+  <defs>
+    <linearGradient id="bg-gradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect x="32" y="32" width="448" height="448" rx="112" fill="url(#bg-gradient)" />
+
+  <!-- Subtle inner glow -->
+  <rect x="64" y="64" width="384" height="384" rx="96" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="4" />
+
+  <!-- Notification bell -->
+  <g transform="translate(156 140)">
+    <!-- Bell body -->
+    <path d="M100 240c0 22.091 17.909 40 40 40s40-17.909 40-40" fill="none" stroke="#e5e7eb" stroke-width="20" stroke-linecap="round" />
+    <path d="M40 200h160c5.523 0 10-4.477 10-10 0-8.837-4.686-16.99-12.284-21.288C186 152 180 132 180 112 180 71.817 152.183 44 112 44S44 71.817 44 112c0 20-6 40-17.716 56.712C18.686 173.01 14 181.163 14 190c0 5.523 4.477 10 10 10z" fill="#e5e7eb" />
+    <!-- Clapper -->
+    <circle cx="120" cy="256" r="16" fill="#e5e7eb" />
+  </g>
+
+  <!-- Accent badge (unread dot) -->
+  <circle cx="352" cy="144" r="44" fill="#f97316" />
+  <text x="352" y="154" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="28" font-weight="700" fill="#0f172a">!</text>
+
+  <!-- "My" label to hint "My Notifications" -->
+  <text x="256" y="416" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="44" font-weight="700" fill="#e5e7eb" letter-spacing="2">
+    MY
+  </text>
+</svg>

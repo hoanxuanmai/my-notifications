@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { NotificationQueryDto } from './dto/notification-query.dto';
-import { addMonths } from 'date-fns';
+import { addDays } from 'date-fns';
+import { ConfigService } from '@nestjs/config';
 import { NotificationType, NotificationPriority } from '../common/enums/notification.enum';
 import { NotificationsRepository } from '../common/repositories/notifications.repository';
 import { NotificationFilter } from '../common/types/database.types';
@@ -25,6 +26,7 @@ export class NotificationsService {
     private readonly channelMembersRepository: ChannelMembersRepository,
     private readonly notificationsGateway: NotificationsGateway,
     private readonly notificationsDispatchService: NotificationsDispatchService,
+    private readonly configService: ConfigService,
     @InjectQueue(NOTIFICATIONS_DISPATCH_QUEUE)
     private readonly notificationsDispatchQueue: Queue,
   ) {}
@@ -33,7 +35,8 @@ export class NotificationsService {
     channelId: string,
     createNotificationDto: CreateNotificationDto
   ) {
-    const expiresAt = addMonths(new Date(), 1);
+    const ttlDays = this.configService.get<number>('NOTIFICATION_TTL_DAYS') || 3;
+    const expiresAt = addDays(new Date(), ttlDays);
 
     const notification = await this.notificationsRepository.create(
       {
