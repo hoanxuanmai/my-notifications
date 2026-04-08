@@ -38,7 +38,7 @@ export default function Home() {
       ? localStorage.getItem('auth_token')
       : null;
 
-    if (!token) {
+    if (!token || !user) {
       setShowLoginModal(true);
       return;
     }

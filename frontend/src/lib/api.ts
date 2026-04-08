@@ -47,6 +47,8 @@ if (typeof window !== 'undefined') {
         } catch {
           // ignore storage errors
         }
+        // Clear token from apiClient immediately to prevent subsequent requests with invalid token
+        setApiAuthToken(null);
         if (typeof window !== 'undefined') {
           // Fire a custom event so UI can react (e.g. open login modal)
           window.dispatchEvent(new Event('auth-unauthorized'));

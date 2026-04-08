@@ -29,6 +29,8 @@ interface NotificationsState {
   addNotification: (notification: Notification) => void;
   updateNotification: (notification: Notification) => void;
   removeNotification: (id: string) => void;
+  _cacheApiRequests: Record<string, any>;
+  _getRequestByCache: (key: string, callback: ()=>{}) => any;
 }
 
 export const useNotificationsStore = create<NotificationsState>((set, get) => ({
@@ -44,6 +46,7 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
   hasMoreByChannelId: {},
   paginationOffsetGlobal: 0,
   paginationOffsetByChannelId: {},
+  _cacheApiRequests: {},
 
   fetchChannels: async () => {
     set({ loading: true, error: null });
@@ -123,14 +126,31 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     }
   },
 
+  _getRequestByCache: (key: string, callback: ()=>{}) => {
+    const { _cacheApiRequests } = get();
+    if (!_cacheApiRequests[key]) {
+      _cacheApiRequests[key] = callback();
+      _cacheApiRequests[key].finally(() => {
+        set((state) => {
+          const cacheApiRequests = { ...state._cacheApiRequests };
+          delete cacheApiRequests[key];
+          return { _cacheApiRequests: cacheApiRequests };
+        });
+      });
+    }
+    return _cacheApiRequests[key];
+  },
+
   fetchNotifications: async (channelId?: string) => {
     set({ loading: true, error: null });
     try {
-      const response = await notificationsApi.getAll({
+      const cacheKey = channelId ? `notifications_${channelId}` : 'notifications_global';
+      
+      const response = await get()._getRequestByCache(cacheKey, () => notificationsApi.getAll({
         channelId,
         limit: 20,
         offset: 0
-      });
+      }));
       const pageSize = 20;
 
       // Nếu không filter channelId, coi như danh sách global
@@ -196,11 +216,11 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     set({ loadingMore: true, error: null });
 
     try {
-      const response = await notificationsApi.getAll({
+      const response = await get()._getRequestByCache(`notifications_${selectedChannelId || 'global'}_${currentOffset}`, () => notificationsApi.getAll({
         channelId: selectedChannelId || undefined,
         limit: pageSize,
         offset: currentOffset,
-      });
+      }));
 
       set((state) => {
         const merged = new Map(state.notifications.map((n) => [n.id, n] as const));
