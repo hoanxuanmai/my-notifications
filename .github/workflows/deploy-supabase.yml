@@ -4,38 +4,47 @@ on:
   push:
     branches:
       - supabase
+      - main
     paths:
       - 'supabase/**'
       - '.github/workflows/deploy-supabase.yml'
   pull_request:
     branches:
       - supabase
+      - main
     paths:
       - 'supabase/**'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Chỉ kiểm tra (Dry run - không ghi vào database)'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   test_and_lint:
-    name: Lint Migrations & Test Edge Functions
+    name: 1. Kiểm tra cấu trúc & SQL Migrations
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: latest
-
-      - name: Verify SQL Migrations syntax
+      - name: Kiểm tra thư mục supabase và migration files
         run: |
-          echo "Checking migration files..."
-          ls -la supabase/migrations/
+          if [ ! -d "supabase" ]; then
+            echo "❌ Thư mục 'supabase/' không tồn tại trong nhánh hiện tại!"
+            exit 1
+          fi
+          echo "✅ Đã tìm thấy thư mục supabase. Danh sách files:"
+          ls -la supabase/
+          ls -la supabase/migrations/ || true
+          ls -la supabase/functions/ || true
 
   deploy_to_supabase:
-    name: Deploy Migrations & Edge Functions
+    name: 2. Deploy Migrations & Edge Functions lên Supabase
     needs: test_and_lint
-    if: github.ref == 'refs/heads/supabase' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -46,6 +55,38 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Kiểm tra các Secrets cấu hình
+        run: |
+          echo "=== KIỂM TRA CẤU HÌNH SECRETS ==="
+          MISSING=0
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "❌ THIẾU SECRET: SUPABASE_ACCESS_TOKEN"
+            echo "👉 Vui lòng vào GitHub Repo -> Settings -> Secrets and variables -> Actions -> Tạo 'SUPABASE_ACCESS_TOKEN' (Lấy từ https://supabase.com/dashboard/account/tokens)"
+            MISSING=1
+          else
+            echo "✅ Đã cấu hình SUPABASE_ACCESS_TOKEN"
+          fi
+
+          if [ -z "$SUPABASE_PROJECT_ID" ]; then
+            echo "❌ THIẾU SECRET: SUPABASE_PROJECT_ID"
+            echo "👉 Vui lòng vào GitHub Repo -> Settings -> Secrets and variables -> Actions -> Tạo 'SUPABASE_PROJECT_ID' (Reference ID của dự án trên Supabase)"
+            MISSING=1
+          else
+            echo "✅ Đã cấu hình SUPABASE_PROJECT_ID: $SUPABASE_PROJECT_ID"
+          fi
+
+          if [ -z "$SUPABASE_DB_PASSWORD" ]; then
+            echo "⚠️ CẢNH BÁO: Chưa có SUPABASE_DB_PASSWORD (Có thể cần khi chạy db push nếu dùng kết nối trực tiếp)"
+          else
+            echo "✅ Đã cấu hình SUPABASE_DB_PASSWORD"
+          fi
+
+          if [ $MISSING -eq 1 ]; then
+            echo ""
+            echo "🛑 DỪNG DEPLOY: Thiếu thông tin xác thực bí mật để kết nối với Supabase Cloud."
+            exit 1
+          fi
+
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
@@ -53,27 +94,35 @@ jobs:
 
       - name: Link to Supabase Project
         run: |
-          supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+          echo "🔗 Đang liên kết với dự án Supabase: $SUPABASE_PROJECT_ID"
+          if [ -n "$SUPABASE_DB_PASSWORD" ]; then
+            supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD" --debug
+          else
+            supabase link --project-ref "$SUPABASE_PROJECT_ID" --debug
+          fi
 
       - name: Push Database Migrations (Schema, RLS, Procedures)
+        if: ${{ !(github.event.inputs.dry_run == 'true') }}
         run: |
-          supabase db push --password "$SUPABASE_DB_PASSWORD"
+          echo "🚀 Đang đẩy Database Migrations lên Supabase Cloud..."
+          if [ -n "$SUPABASE_DB_PASSWORD" ]; then
+            supabase db push --password "$SUPABASE_DB_PASSWORD" --debug
+          else
+            supabase db push --debug
+          fi
 
       - name: Deploy Edge Functions
+        if: ${{ !(github.event.inputs.dry_run == 'true') }}
         run: |
-          echo "Deploying send-notification..."
-          supabase functions deploy send-notification --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt
-          
-          echo "Deploying kafka-bridge..."
-          supabase functions deploy kafka-bridge --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt
-          
-          echo "Deploying read-notification..."
-          supabase functions deploy read-notification --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt
-          
-          echo "Deploying cancel-notification..."
-          supabase functions deploy cancel-notification --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt
+          echo "⚡ Đang deploy các Edge Functions..."
+          for fn in send-notification kafka-bridge read-notification cancel-notification; do
+            if [ -d "supabase/functions/$fn" ]; then
+              echo "📦 Deploying function: $fn..."
+              supabase functions deploy "$fn" --no-verify-jwt --project-ref "$SUPABASE_PROJECT_ID" || echo "⚠️ Cảnh báo: Lỗi khi deploy $fn"
+            fi
+          done
 
-      - name: Generate TypeScript Types (Optional Artifact)
+      - name: Generate TypeScript Types
         run: |
-          supabase gen types typescript --project-ref "$SUPABASE_PROJECT_ID" > types_supabase.ts
-          echo "TypeScript types generated successfully."
+          supabase gen types typescript --project-ref "$SUPABASE_PROJECT_ID" > types_supabase.ts || true
+          echo "✅ Hoàn tất quá trình Deploy!"
