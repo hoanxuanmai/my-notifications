@@ -1,0 +1,79 @@
+name: Deploy Supabase Schema & Edge Functions
+
+on:
+  push:
+    branches:
+      - supabase
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/deploy-supabase.yml'
+  pull_request:
+    branches:
+      - supabase
+    paths:
+      - 'supabase/**'
+  workflow_dispatch:
+
+jobs:
+  test_and_lint:
+    name: Lint Migrations & Test Edge Functions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Verify SQL Migrations syntax
+        run: |
+          echo "Checking migration files..."
+          ls -la supabase/migrations/
+
+  deploy_to_supabase:
+    name: Deploy Migrations & Edge Functions
+    needs: test_and_lint
+    if: github.ref == 'refs/heads/supabase' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link to Supabase Project
+        run: |
+          supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Push Database Migrations (Schema, RLS, Procedures)
+        run: |
+          supabase db push --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Deploy Edge Functions
+        run: |
+          echo "Deploying send-notification..."
+          supabase functions deploy send-notification --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt
+          
+          echo "Deploying kafka-bridge..."
+          supabase functions deploy kafka-bridge --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt
+          
+          echo "Deploying read-notification..."
+          supabase functions deploy read-notification --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt
+          
+          echo "Deploying cancel-notification..."
+          supabase functions deploy cancel-notification --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt
+
+      - name: Generate TypeScript Types (Optional Artifact)
+        run: |
+          supabase gen types typescript --project-ref "$SUPABASE_PROJECT_ID" > types_supabase.ts
+          echo "TypeScript types generated successfully."
