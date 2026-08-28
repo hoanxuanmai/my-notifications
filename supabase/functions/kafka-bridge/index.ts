@@ -1,5 +1,5 @@
 // Supabase Edge Function: kafka-bridge
-// Ingests events from Kafka microservices / Upstash / Webhooks and routes to Supabase Realtime
+// Ingests events from Kafka microservices / Upstash / Webhooks and routes to Supabase Channel Realtime
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
@@ -14,10 +14,19 @@ interface KafkaEventPayload {
   offset?: number;
   key?: string;
   value: {
-    recipientId: string;
+    channelId?: string;
+    channel_id?: string;
+    webhookToken?: string;
+    webhook_token?: string;
+    recipientId?: string;
+    recipient_id?: string;
+    userId?: string;
     templateSlug?: string;
     title?: string;
     content?: string;
+    message?: string;
+    type?: string;
+    priority?: string;
     category?: string;
     variables?: Record<string, string>;
     payload?: Record<string, unknown>;
@@ -36,15 +45,33 @@ serve(async (req: Request) => {
 
     const event: KafkaEventPayload = await req.json();
 
-    if (!event.value || !event.value.recipientId) {
+    if (!event.value) {
       return new Response(
-        JSON.stringify({ error: "Invalid Kafka event structure. Expected .value.recipientId" }),
+        JSON.stringify({ error: "Invalid Kafka event structure. Expected .value object" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    let targetChannelId = event.value.channelId || event.value.channel_id || null;
+    const webhookToken = event.value.webhookToken || event.value.webhook_token || null;
+    let targetUserId = event.value.userId || null;
+    const recipientId = event.value.recipientId || event.value.recipient_id || (targetChannelId ? `channel:${targetChannelId}` : 'broadcast');
+
+    // If webhook token provided, lookup channel
+    if (webhookToken && !targetChannelId) {
+      const { data: ch } = await supabase
+        .from("channels")
+        .select("id, user_id, name")
+        .eq("webhook_token", webhookToken)
+        .single();
+      if (ch) {
+        targetChannelId = ch.id;
+        targetUserId = ch.user_id;
+      }
+    }
+
     let finalTitle = event.value.title || `Event from ${event.topic || 'Kafka'}`;
-    let finalContent = event.value.content || `Kafka event processed for topic: ${event.topic}`;
+    let finalMessage = event.value.message || event.value.content || `Kafka event processed for topic: ${event.topic || 'stream'}`;
 
     // If template slug provided, attempt template resolution
     if (event.value.templateSlug) {
@@ -65,7 +92,7 @@ serve(async (req: Request) => {
         });
 
         finalTitle = compiledTitle;
-        finalContent = compiledBody;
+        finalMessage = compiledBody;
       }
     }
 
@@ -73,13 +100,24 @@ serve(async (req: Request) => {
     const { data: notification, error } = await supabase
       .from("notifications")
       .insert({
-        recipient_id: event.value.recipientId,
+        channel_id: targetChannelId,
+        user_id: targetUserId,
+        recipient_id: recipientId,
         title: finalTitle,
-        content: finalContent,
-        message: finalContent,
+        content: finalMessage,
+        message: finalMessage,
+        type: event.value.type || 'info',
+        priority: event.value.priority || 'high',
         category: event.value.category || 'tasks',
         channel: 'in_app',
-        priority: 'high',
+        read: false,
+        is_read: false,
+        metadata: {
+          kafkaTopic: event.topic,
+          kafkaPartition: event.partition,
+          kafkaOffset: event.offset,
+          ...(event.value.payload || {}),
+        },
         payload: {
           kafkaTopic: event.topic,
           kafkaPartition: event.partition,
@@ -99,8 +137,9 @@ serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Kafka event converted to realtime notification",
         notificationId: notification.id,
+        channelId: targetChannelId,
+        topic: event.topic,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

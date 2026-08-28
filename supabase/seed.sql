@@ -11,17 +11,52 @@ VALUES
   ('system-deploy-complete', 'Production Deployment Succeeded', 'system', 'Deployment Live: {{service_name}} v{{version}}', 'Version {{version}} has been rolled out across all edge nodes with 0 downtime.', 'in_app', ARRAY['service_name', 'version'], 'normal')
 ON CONFLICT (slug) DO NOTHING;
 
--- 2. Seed Sample Notifications
+-- 2. Seed Default Channels
+INSERT INTO public.channels (
+  id,
+  name,
+  description,
+  webhook_token,
+  settings,
+  is_active,
+  expires_at
+)
+VALUES
+  (
+    'a0000000-0000-0000-0000-000000000001',
+    'General Alerts',
+    'Primary notification channel for general announcements and application updates',
+    'webhook_token_general_01',
+    '{"template":"default"}'::jsonb,
+    true,
+    timezone('utc'::text, now()) + interval '1 year'
+  ),
+  (
+    'a0000000-0000-0000-0000-000000000002',
+    'Engineering & DevOps',
+    'CI/CD pipeline alerts, Kafka broker events, and Supabase database migrations',
+    'webhook_token_devops_02',
+    '{"template":"slack"}'::jsonb,
+    true,
+    timezone('utc'::text, now()) + interval '1 year'
+  )
+ON CONFLICT (id) DO NOTHING;
+
+-- 3. Seed Sample Notifications linked to Channels
 INSERT INTO public.notifications (
   id,
+  channel_id,
   recipient_id,
   title,
   content,
   message,
   category,
   channel,
+  type,
   priority,
   payload,
+  metadata,
+  read,
   is_read,
   is_pinned,
   sender
@@ -29,49 +64,61 @@ INSERT INTO public.notifications (
 VALUES
   (
     '11111111-1111-1111-1111-111111111111',
+    'a0000000-0000-0000-0000-000000000001',
     'hoanxuanmai',
-    'Supabase Realtime Replicated from NestJS',
-    'Your migration from NestJS WebSocket Gateway to Supabase Realtime is complete and active.',
-    'Your migration from NestJS WebSocket Gateway to Supabase Realtime is complete and active.',
+    'Supabase Channel Realtime Synchronized',
+    'Your channel "General Alerts" is live with real-time WebSocket replication enabled.',
+    'Your channel "General Alerts" is live with real-time WebSocket replication enabled.',
     'system',
     'in_app',
+    'info',
     'high',
-    '{"service":"my-notifications","source":"supabase_migration","protocol":"PostgreSQL_WAL"}'::jsonb,
+    '{"service":"my-notifications","source":"supabase_channel"}'::jsonb,
+    '{"service":"my-notifications","source":"supabase_channel"}'::jsonb,
+    false,
     false,
     true,
-    '{"name":"Migration Hub","role":"Architecture Engine"}'::jsonb
+    '{"name":"Notification Hub","role":"Engine"}'::jsonb
   ),
   (
     '22222222-2222-2222-2222-222222222222',
+    'a0000000-0000-0000-0000-000000000002',
     'hoanxuanmai',
-    'RLS Policy Protection Verified',
-    'Row Level Security is active. Only users matching auth.uid() or recipient_id can access records.',
-    'Row Level Security is active. Only users matching auth.uid() or recipient_id can access records.',
+    'Channel Members RLS Enforced',
+    'Only channel owners and invited members can view, read, and dispatch notifications in this channel.',
+    'Only channel owners and invited members can view, read, and dispatch notifications in this channel.',
     'security',
     'in_app',
+    'success',
     'urgent',
-    '{"securityLevel":"high","rlsEnabled":true}'::jsonb,
+    '{"securityLevel":"high","channelAccess":"member_protected"}'::jsonb,
+    '{"securityLevel":"high","channelAccess":"member_protected"}'::jsonb,
+    false,
     false,
     false,
     '{"name":"Security Guard","role":"Database Enforcer"}'::jsonb
   ),
   (
     '33333333-3333-3333-3333-333333333333',
+    'a0000000-0000-0000-0000-000000000002',
     'hoanxuanmai',
-    'Kafka Event Processed via Edge Function',
-    'Consumer consumed message from topic notification.send and written to PostgreSQL in 14ms.',
-    'Consumer consumed message from topic notification.send and written to PostgreSQL in 14ms.',
+    'Kafka Event Dispatched into Channel',
+    'Message received via Webhook & Kafka Bridge dispatched to Engineering & DevOps channel.',
+    'Message received via Webhook & Kafka Bridge dispatched to Engineering & DevOps channel.',
     'tasks',
     'webhook',
+    'info',
     'normal',
     '{"topic":"notification.send","partition":2,"offset":1094}'::jsonb,
+    '{"topic":"notification.send","partition":2,"offset":1094}'::jsonb,
+    true,
     true,
     false,
     '{"name":"Kafka Edge Bridge","role":"Event Pipeline"}'::jsonb
   )
 ON CONFLICT (id) DO NOTHING;
 
--- 3. Seed Initial Delivery Logs
+-- 4. Seed Initial Delivery Logs
 INSERT INTO public.delivery_logs (
   notification_id,
   channel,

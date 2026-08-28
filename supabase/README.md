@@ -1,98 +1,88 @@
-# Supabase CLI Project Configuration & Deployment Guide
+# Supabase Architecture & Channels Implementation Guide
 
-Dự án này chứa toàn bộ mã nguồn cấu hình, migrations database, stored procedures (RPC) và Supabase Edge Functions để triển khai hệ thống thông báo (`my-notifications`) lên **Supabase Cloud** hoặc **Local Supabase** thông qua **Supabase CLI**.
-
----
-
-## 1. Cấu trúc thư mục Supabase
-
-```
-supabase/
-├── config.toml                            # Cấu hình dự án CLI (Ports, API, Auth, Realtime, Functions)
-├── migrations/
-│   └── 20240101000000_create_notifications_schema.sql  # Schema bảng, RLS, Indexes, Stored Procedures, Realtime
-├── seed.sql                               # Dữ liệu mẫu (Templates, Notifications, Delivery logs)
-└── functions/                             # Deno Edge Functions thay thế NestJS Controllers
-    ├── send-notification/index.ts         # Thay thế SendNotificationController
-    ├── kafka-bridge/index.ts              # Thay thế Kafka Consumer / Webhook
-    ├── cancel-notification/index.ts       # Thay thế CancelNotificationUseCase
-    └── read-notification/index.ts         # Thay thế ReadNotificationUseCase
-```
+Dự án này chứa toàn bộ mã nguồn cấu hình, migrations database, stored procedures (RPC), Row Level Security (RLS) và Supabase Edge Functions để thay thế hoàn toàn backend **NestJS + Prisma + PostgreSQL + WebSocket Gateway** sang **Supabase Cloud**.
 
 ---
 
-## 2. Hướng dẫn CLI từng bước (Step-by-Step)
+## 1. Cấu trúc bảng & Quan hệ Channels & Notifications
 
-### Bước 1: Cài đặt Supabase CLI
-Nếu bạn chưa cài đặt Supabase CLI trên máy tính:
-```bash
-# Cách 1: Sử dụng npx (Không cần cài global)
-npx supabase --version
+### Bảng `public.channels`
+- `id` (UUID, Primary Key)
+- `user_id` (UUID -> `auth.users(id)`: Chủ sở hữu channel)
+- `name` (VARCHAR: Tên channel)
+- `description` (TEXT: Mô tả)
+- `webhook_token` (VARCHAR UNIQUE: Token nhận webhook từ các hệ thống ngoài)
+- `api_key` (VARCHAR: API Key)
+- `settings` (JSONB: Cấu hình template, webhook format, slack/discord)
+- `is_active` (BOOLEAN: Trạng thái kích hoạt)
+- `created_at`, `updated_at`, `expires_at` (TIMESTAMPTZ)
 
-# Cách 2: Cài đặt qua npm
-npm install -g supabase
+### Bảng `public.channel_members`
+- `id` (UUID, Primary Key)
+- `channel_id` (UUID -> `public.channels(id)`)
+- `user_id` (UUID -> `auth.users(id)`)
+- `role` (VARCHAR: `'owner'`, `'admin'`, `'member'`)
+- `UNIQUE(user_id, channel_id)`: Đảm bảo 1 user không bị trùng lặp trong 1 channel
 
-# Cách 3: MacOS Homebrew
-brew install supabase/tap/supabase
-
-# Cách 4: Windows Scoop
-scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
-scoop install supabase
-```
-
-### Bước 2: Đăng nhập vào tài khoản Supabase
-```bash
-npx supabase login
-```
-Lệnh này sẽ mở trình duyệt để bạn tạo Personal Access Token và xác thực CLI.
-
-### Bước 3: Liên kết với Project Supabase của bạn
-Lấy **Reference ID** dự án của bạn (nằm trong URL Supabase Dashboard: `https://supabase.com/dashboard/project/<PROJECT_REF>`):
-```bash
-npx supabase link --project-ref <YOUR_PROJECT_REF>
-```
-
-### Bước 4: Đẩy Database Schema & Migrations lên Supabase Cloud (`db push`)
-```bash
-npx supabase db push
-```
-Lệnh này sẽ tự động:
-1. Tạo bảng `public.notifications`, `public.delivery_logs`, `public.notification_preferences`, `public.notification_templates`.
-2. Thiết lập chính sách bảo mật **Row Level Security (RLS)**.
-3. Tạo các Stored Procedures (RPC): `read_notification`, `unread_notification`, `cancel_notification`, `count_recipient_notifications`.
-4. Bật **Supabase Realtime** cho các bảng.
-
-### Bước 5: (Tùy chọn) Chạy Seed Data mẫu
-```bash
-npx supabase db reset
-# Hoặc thực thi trực tiếp seed.sql qua psql hoặc SQL Editor trên Dashboard
-```
-
-### Bước 6: Triển khai các Edge Functions lên Supabase Cloud
-```bash
-# Triển khai toàn bộ Edge Functions:
-npx supabase functions deploy send-notification --no-verify-jwt
-npx supabase functions deploy kafka-bridge --no-verify-jwt
-npx supabase functions deploy cancel-notification --no-verify-jwt
-npx supabase functions deploy read-notification --no-verify-jwt
-```
-
-### Bước 7: Tự động sinh TypeScript Types từ Database
-```bash
-npx supabase gen types typescript --linked > src/types/supabase.ts
-```
+### Bảng `public.notifications`
+- `id` (UUID, Primary Key)
+- `channel_id` (UUID -> `public.channels(id)` ON DELETE CASCADE)
+- `user_id` (UUID -> `auth.users(id)`)
+- `recipient_id` (VARCHAR: User ID hoặc Channel recipient)
+- `title` (VARCHAR: Tiêu đề thông báo)
+- `message` / `content` (TEXT: Nội dung thông báo)
+- `type` (`info`, `success`, `warning`, `error`, `debug`)
+- `priority` (`low`, `medium`, `high`, `urgent`)
+- `read` / `is_read` (BOOLEAN: Trạng thái đã đọc)
+- `metadata` / `payload` (JSONB: Dữ liệu tùy chỉnh kèm theo)
+- `read_at`, `expires_at`, `created_at`, `updated_at`
 
 ---
 
-## 3. Chạy Local Supabase (Docker)
-Nếu bạn muốn chạy toàn bộ Supabase cục bộ trên máy tính:
-```bash
-# Khởi động Supabase local (yêu cầu Docker đang chạy)
-npx supabase start
+## 2. Bảo mật Row Level Security (RLS) cho Channels
 
-# Xem thông tin kết nối và Studio URL (http://localhost:54324)
-npx supabase status
+Hệ thống RLS đảm bảo:
+1. **Xem Channel (`SELECT`)**: Người dùng là **Chủ sở hữu channel** (`user_id = auth.uid()`) HOẶC là **Thành viên trong channel** (`id IN (SELECT channel_id FROM channel_members WHERE user_id = auth.uid())`).
+2. **Quản lý Thành viên (`INSERT`/`DELETE` channel_members)**: Chỉ chủ channel mới có quyền thêm/xóa thành viên. Thành viên có quyền tự rời khỏi channel (`user_id = auth.uid()`).
+3. **Xem Thông báo (`SELECT notifications`)**: Người dùng được xem thông báo nếu là chủ sở hữu, người nhận đích (`recipient_id`), hoặc thuộc channel (`channel_id`) mà user đó là chủ sở hữu hoặc thành viên.
+4. **Đánh dấu đã đọc (`UPDATE notifications`)**: Thành viên hoặc chủ channel có thể cập nhật trạng thái đọc của thông báo trong channel.
 
-# Dừng Supabase local
-npx supabase stop
-```
+---
+
+## 3. Stored Procedures (RPC Functions)
+
+Hệ thống cung cấp đầy đủ các RPC tương ứng 100% logic NestJS:
+
+| Tên RPC | Tham số | Chức năng |
+| :--- | :--- | :--- |
+| `create_channel` | `p_name, p_description, p_settings` | Tạo channel mới cho user hiện tại kèm `webhook_token` ngẫu nhiên |
+| `add_channel_member_by_email` | `p_channel_id, p_email` | Thêm thành viên vào channel theo email (chỉ chủ channel) |
+| `remove_channel_member` | `p_channel_id, p_member_user_id` | Xóa thành viên khỏi channel |
+| `get_user_channels` | `p_user_id` | Lấy danh sách channel của user kèm số tin chưa đọc (`_count.notifications`) và tin nhắn mới nhất |
+| `send_channel_notification` | `p_channel_id, p_title, p_message, p_type, p_priority, p_metadata, p_ttl_days` | Đẩy thông báo vào channel, tự động ghi telemetry log |
+| `send_notification_by_webhook`| `p_webhook_token, p_title, p_message, p_type, p_priority, p_metadata` | Nhận webhook bên ngoài qua token và đẩy vào channel |
+| `mark_channel_notifications_read` | `p_channel_id` | Đánh dấu tất cả thông báo trong channel là đã đọc |
+| `get_channel_unread_count` | `p_channel_id` | Đếm số thông báo chưa đọc trong channel |
+| `get_channels_unread_summary` | `p_user_id` | Thống kê số lượng chưa đọc của tất cả các channel |
+
+---
+
+## 4. Edge Functions
+
+1. **`send-notification`**:
+   - Hỗ trợ gửi thông báo qua `channelId`, `webhookToken`, hoặc `recipientId`.
+   - Lưu vào bảng `public.notifications` và tạo bản ghi telemetry trong `public.delivery_logs`.
+2. **`channel-manager`**:
+   - Endpoint HTTP quản lý tạo channel, thêm thành viên, lấy danh sách channel, thống kê chưa đọc.
+3. **`kafka-bridge`**:
+   - Ingest message từ Kafka / Event bus / Webhooks và phân phối vào Channel Supabase Realtime.
+4. **`read-notification` & `cancel-notification`**:
+   - Đánh dấu đã đọc và hủy thông báo.
+
+---
+
+## 5. Triển khai tự động bằng GitHub Actions
+
+Mọi thay đổi SQL và Edge Functions khi push vào nhánh `supabase` hoặc `main` sẽ được GitHub Actions tự động:
+1. Chạy `supabase db push` để tạo/cập nhật bảng, triggers, procedures, RLS.
+2. Deploy toàn bộ các Edge Functions trong `supabase/functions/`.
