@@ -14,8 +14,10 @@ import {
   Settings,
   HelpCircle,
   Terminal,
+  User,
+  Shield,
 } from 'lucide-react';
-import { ActiveTab, SupabaseConfig } from '../types';
+import { ActiveTab, SupabaseConfig, AuthUser } from '../types';
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -23,8 +25,10 @@ interface NavbarProps {
   unreadCount: number;
   config: SupabaseConfig;
   soundEnabled: boolean;
+  currentUser: AuthUser;
   onToggleSound: () => void;
   onOpenConnectModal: () => void;
+  onOpenAuthModal: () => void;
   onQuickDispatch: () => void;
 }
 
@@ -34,8 +38,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   unreadCount,
   config,
   soundEnabled,
+  currentUser,
   onToggleSound,
   onOpenConnectModal,
+  onOpenAuthModal,
   onQuickDispatch,
 }) => {
   return (
@@ -164,7 +170,28 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
 
           {/* Right Action Tools */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
+            {/* Active User Pill / Login */}
+            <button
+              onClick={onOpenAuthModal}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs transition cursor-pointer ${
+                currentUser.role === 'admin'
+                  ? 'bg-rose-500/10 border-rose-500/30 text-rose-300 hover:bg-rose-500/20'
+                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+              }`}
+              title="Nhấn để đổi tài khoản hoặc kiểm thử RLS"
+            >
+              <User className="h-3.5 w-3.5 text-cyan-400" />
+              <span className="font-mono text-xs max-w-[110px] truncate hidden sm:inline">
+                {currentUser.email}
+              </span>
+              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded uppercase ${
+                currentUser.role === 'admin' ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-700 text-slate-300'
+              }`}>
+                {currentUser.role}
+              </span>
+            </button>
+
             {/* Quick Dispatch trigger */}
             <button
               onClick={onQuickDispatch}
@@ -178,7 +205,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Sound toggle */}
             <button
               onClick={onToggleSound}
-              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
               title={soundEnabled ? 'Mute notification chimes' : 'Enable notification chimes'}
             >
               {soundEnabled ? <Volume2 className="h-4 w-4 text-emerald-400" /> : <VolumeX className="h-4 w-4" />}
@@ -187,7 +214,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Supabase connection status pill */}
             <button
               onClick={onOpenConnectModal}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition cursor-pointer ${
                 config.isConnected
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
                   : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800 hover:border-slate-600'

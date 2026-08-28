@@ -8,8 +8,9 @@ import {
   NotificationChannel,
   NotificationPriority,
   NotificationCategory,
+  AuthUser,
 } from '../types';
-import { INITIAL_NOTIFICATIONS, INITIAL_PREFERENCES, INITIAL_TEMPLATES } from '../data/mockData';
+import { INITIAL_NOTIFICATIONS, INITIAL_PREFERENCES, INITIAL_TEMPLATES, DEFAULT_USERS } from '../data/mockData';
 import { playNotificationSound } from '../utils/audio';
 
 const STORAGE_KEYS = {
@@ -18,6 +19,7 @@ const STORAGE_KEYS = {
   TEMPLATES: 'my_notif_templates_v1',
   DELIVERY_LOGS: 'my_notif_delivery_logs_v1',
   CONFIG: 'my_notif_supabase_config_v1',
+  CURRENT_USER: 'my_notif_current_user_v1',
 };
 
 class NotificationService {
@@ -25,6 +27,7 @@ class NotificationService {
   private preferences: UserPreferences = INITIAL_PREFERENCES;
   private templates: NotificationTemplate[] = INITIAL_TEMPLATES;
   private deliveryLogs: DeliveryLog[] = [];
+  private currentUser: AuthUser = DEFAULT_USERS[0]; // Default: admin@app.com
   private config: SupabaseConfig = {
     url: '',
     anonKey: '',
@@ -43,6 +46,9 @@ class NotificationService {
 
   private loadFromStorage() {
     try {
+      const savedUser = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+      this.currentUser = savedUser ? JSON.parse(savedUser) : DEFAULT_USERS[0];
+
       const savedNotifs = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
       this.notifications = savedNotifs ? JSON.parse(savedNotifs) : INITIAL_NOTIFICATIONS;
 
@@ -64,6 +70,7 @@ class NotificationService {
       }
     } catch (e) {
       console.warn('Failed to load from storage, using initial mock data', e);
+      this.currentUser = DEFAULT_USERS[0];
       this.notifications = INITIAL_NOTIFICATIONS;
       this.preferences = INITIAL_PREFERENCES;
       this.templates = INITIAL_TEMPLATES;
@@ -72,6 +79,7 @@ class NotificationService {
 
   private persist() {
     try {
+      localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(this.currentUser));
       localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(this.notifications));
       localStorage.setItem(STORAGE_KEYS.PREFERENCES, JSON.stringify(this.preferences));
       localStorage.setItem(STORAGE_KEYS.TEMPLATES, JSON.stringify(this.templates));
@@ -93,6 +101,83 @@ class NotificationService {
 
   private notifyListeners() {
     this.listeners.forEach((fn) => fn());
+  }
+
+  public getCurrentUser(): AuthUser {
+    return { ...this.currentUser };
+  }
+
+  public getAllUsers(): AuthUser[] {
+    return [...DEFAULT_USERS];
+  }
+
+  public async login(email: string, password?: string): Promise<{ success: boolean; user: AuthUser; message: string }> {
+    const normalizedEmail = email.trim().toLowerCase();
+    
+    // Check if live Supabase Auth is connected
+    if (this.supabaseClient && this.config.isConnected && password) {
+      try {
+        const { data, error } = await this.supabaseClient.auth.signInWithPassword({
+          email: normalizedEmail,
+          password: password,
+        });
+
+        if (error) {
+          // Attempt sign up if user does not exist
+          const { data: signUpData, error: signUpErr } = await this.supabaseClient.auth.signUp({
+            email: normalizedEmail,
+            password: password,
+          });
+
+          if (signUpErr) {
+            console.warn('Supabase auth sign in fallback', signUpErr);
+          }
+        }
+      } catch (err) {
+        console.warn('Supabase Auth attempt', err);
+      }
+    }
+
+    // Match preset or build user
+    const matched = DEFAULT_USERS.find((u) => u.email.toLowerCase() === normalizedEmail);
+    const user: AuthUser = matched || {
+      id: 'usr-' + Math.random().toString(36).substring(2, 8),
+      email: normalizedEmail,
+      name: normalizedEmail.split('@')[0],
+      role: normalizedEmail.includes('admin') ? 'admin' : 'user',
+      recipientId: normalizedEmail,
+      isAuthenticated: true,
+      provider: this.config.isConnected ? 'supabase_auth' : 'local_session',
+      avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${normalizedEmail}`,
+    };
+
+    this.currentUser = user;
+    this.preferences.userId = user.id;
+    this.persist();
+
+    return {
+      success: true,
+      user,
+      message: `Đăng nhập thành công với tài khoản ${user.email} (Role: ${user.role})`,
+    };
+  }
+
+  public switchUser(user: AuthUser) {
+    this.currentUser = { ...user, isAuthenticated: true };
+    this.preferences.userId = user.id;
+    this.persist();
+  }
+
+  public logout() {
+    this.currentUser = {
+      id: 'usr-guest',
+      email: 'guest@app.com',
+      name: 'Guest User',
+      role: 'user',
+      recipientId: 'guest',
+      isAuthenticated: false,
+    };
+    this.persist();
   }
 
   public getNotifications(): NotificationItem[] {
