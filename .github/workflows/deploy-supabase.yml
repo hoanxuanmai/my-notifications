@@ -118,11 +118,12 @@ jobs:
           for fn in send-notification kafka-bridge read-notification cancel-notification; do
             if [ -d "supabase/functions/$fn" ]; then
               echo "📦 Deploying function: $fn..."
-              supabase functions deploy "$fn" --no-verify-jwt --project-ref "$SUPABASE_PROJECT_ID" || echo "⚠️ Cảnh báo: Lỗi khi deploy $fn"
+              supabase functions deploy "$fn" --no-verify-jwt || echo "⚠️ Cảnh báo: Lỗi khi deploy $fn"
             fi
           done
 
       - name: Generate TypeScript Types
         run: |
-          supabase gen types typescript --project-ref "$SUPABASE_PROJECT_ID" > types_supabase.ts || true
+          echo "📝 Đang sinh TypeScript Types từ database..."
+          supabase gen types typescript --linked > types_supabase.ts || supabase gen types typescript --project-id "$SUPABASE_PROJECT_ID" > types_supabase.ts || true
           echo "✅ Hoàn tất quá trình Deploy!"
