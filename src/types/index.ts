@@ -121,15 +121,4 @@ export interface NestJSMigrationItem {
   };
 }
 
-export interface AuthUser {
-  id: string;
-  email: string;
-  name: string;
-  role: 'admin' | 'developer' | 'user';
-  avatar?: string;
-  recipientId: string;
-  isAuthenticated: boolean;
-  provider?: 'supabase_auth' | 'jwt' | 'local_session';
-}
-
 export type ActiveTab = 'inbox' | 'migration' | 'dispatcher' | 'schemas' | 'cli' | 'templates' | 'preferences';

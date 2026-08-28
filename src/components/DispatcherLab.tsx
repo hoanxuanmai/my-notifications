@@ -336,32 +336,7 @@ export const DispatcherLab: React.FC<DispatcherLabProps> = ({ deliveryLogs, onDi
                 />
               </div>
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-slate-300">Recipient User ID / Email</label>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setTargetUserId('admin@app.com')}
-                      className="px-1.5 py-0.5 rounded text-[10px] bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 transition"
-                    >
-                      admin@app.com
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTargetUserId('hoanxuanmai')}
-                      className="px-1.5 py-0.5 rounded text-[10px] bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 transition"
-                    >
-                      hoanxuanmai
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTargetUserId('*')}
-                      className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 transition"
-                    >
-                      * (All)
-                    </button>
-                  </div>
-                </div>
+                <label className="text-xs font-medium text-slate-300 block mb-1">Recipient User ID</label>
                 <input
                   type="text"
                   value={targetUserId}

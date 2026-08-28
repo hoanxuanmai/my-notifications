@@ -8,20 +8,17 @@ import { SupabaseCliStudio } from './components/SupabaseCliStudio';
 import { TemplateManager } from './components/TemplateManager';
 import { PreferencesView } from './components/PreferencesView';
 import { ConnectModal } from './components/ConnectModal';
-import { AuthModal } from './components/AuthModal';
-import { ActiveTab, NotificationItem, DeliveryLog, NotificationTemplate, AuthUser } from './types';
+import { ActiveTab, NotificationItem, DeliveryLog, NotificationTemplate } from './types';
 import { notificationService } from './services/notificationService';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('inbox');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('migration');
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [deliveryLogs, setDeliveryLogs] = useState<DeliveryLog[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [supabaseConfig, setSupabaseConfig] = useState(notificationService.getSupabaseConfig());
-  const [currentUser, setCurrentUser] = useState<AuthUser>(notificationService.getCurrentUser());
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [isConnectModalOpen, setIsConnectModalOpen] = useState<boolean>(false);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     // Initial load
@@ -29,7 +26,6 @@ export default function App() {
     setDeliveryLogs(notificationService.getDeliveryLogs());
     setUnreadCount(notificationService.getUnreadCount());
     setSoundEnabled(notificationService.getPreferences().soundEnabled);
-    setCurrentUser(notificationService.getCurrentUser());
 
     // Subscribe to real-time events
     const unsubscribe = notificationService.subscribe((updatedNotifications) => {
@@ -37,7 +33,6 @@ export default function App() {
       setUnreadCount(notificationService.getUnreadCount());
       setDeliveryLogs(notificationService.getDeliveryLogs());
       setSupabaseConfig(notificationService.getSupabaseConfig());
-      setCurrentUser(notificationService.getCurrentUser());
     });
 
     return () => {
@@ -54,13 +49,12 @@ export default function App() {
   const handleQuickDispatch = async () => {
     await notificationService.dispatchNotification({
       title: 'Realtime Alert: Supabase WAL Event Received',
-      message: `A realtime push event was delivered successfully to ${currentUser.email} replacing the NestJS WebSocket Gateway.`,
+      message: 'A realtime push event was delivered successfully replacing the NestJS WebSocket Gateway.',
       type: 'system',
       channel: 'in_app',
       priority: 'high',
       senderName: 'Supabase Realtime Hub',
       senderRole: 'Event Gateway',
-      targetUserId: currentUser.recipientId,
     });
   };
 
@@ -78,10 +72,8 @@ export default function App() {
         unreadCount={unreadCount}
         config={supabaseConfig}
         soundEnabled={soundEnabled}
-        currentUser={currentUser}
         onToggleSound={handleToggleSound}
         onOpenConnectModal={() => setIsConnectModalOpen(true)}
-        onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onQuickDispatch={handleQuickDispatch}
       />
 
@@ -144,18 +136,6 @@ export default function App() {
           setSupabaseConfig(notificationService.getSupabaseConfig());
         }}
       />
-
-      {/* User Auth & Profile Modal */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        currentUser={currentUser}
-        onUserChanged={(updated) => {
-          setCurrentUser(updated);
-          setNotifications(notificationService.getNotifications());
-        }}
-      />
     </div>
   );
 }
-

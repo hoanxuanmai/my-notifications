@@ -50,23 +50,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const [expandedPayloadId, setExpandedPayloadId] = useState<string | null>(null);
   const [isGrouped, setIsGrouped] = useState(false);
 
-  const [userScope, setUserScope] = useState<'my' | 'all'>('all');
-  const currentUser = notificationService.getCurrentUser();
-
   // Filter logic
   const filteredNotifications = useMemo(() => {
     return notifications.filter((item) => {
-      // User scope filter
-      if (userScope === 'my') {
-        const isForMe =
-          item.userId === currentUser.recipientId ||
-          item.userId === currentUser.email ||
-          item.userId === currentUser.id ||
-          item.userId === '*' ||
-          !item.userId;
-        if (!isForMe) return false;
-      }
-
       // View filter
       if (viewFilter === 'unread' && item.isRead) return false;
       if (viewFilter === 'urgent' && item.priority !== 'urgent') return false;
@@ -83,13 +69,12 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         const matchesTitle = item.title.toLowerCase().includes(q);
         const matchesMsg = item.message.toLowerCase().includes(q);
         const matchesSender = item.sender?.name.toLowerCase().includes(q);
-        const matchesUser = item.userId?.toLowerCase().includes(q);
-        if (!matchesTitle && !matchesMsg && !matchesSender && !matchesUser) return false;
+        if (!matchesTitle && !matchesMsg && !matchesSender) return false;
       }
 
       return true;
     });
-  }, [notifications, viewFilter, selectedCategory, searchQuery, userScope, currentUser]);
+  }, [notifications, viewFilter, selectedCategory, searchQuery]);
 
   // Grouped by Category
   const groupedNotifications = useMemo(() => {
@@ -271,30 +256,6 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
           {/* Quick Actions & Group Toggle */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* User Scope Filter */}
-            <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-xs">
-              <button
-                onClick={() => setUserScope('all')}
-                className={`px-2.5 py-1 rounded font-medium transition ${
-                  userScope === 'all'
-                    ? 'bg-slate-800 text-white font-semibold'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                All Users
-              </button>
-              <button
-                onClick={() => setUserScope('my')}
-                className={`px-2.5 py-1 rounded font-medium transition flex items-center gap-1 ${
-                  userScope === 'my'
-                    ? 'bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <span>For: {currentUser.email.split('@')[0]}</span>
-              </button>
-            </div>
-
             <button
               onClick={() => setIsGrouped(!isGrouped)}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition ${

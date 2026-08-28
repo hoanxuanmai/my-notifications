@@ -114,11 +114,12 @@ jobs:
       - name: Deploy Edge Functions
         if: ${{ !(github.event.inputs.dry_run == 'true') }}
         run: |
-          echo "⚡ Đang deploy các Edge Functions..."
-          for fn in send-notification kafka-bridge read-notification cancel-notification; do
-            if [ -d "supabase/functions/$fn" ]; then
-              echo "📦 Deploying function: $fn..."
-              supabase functions deploy "$fn" --no-verify-jwt || echo "⚠️ Cảnh báo: Lỗi khi deploy $fn"
+          echo "⚡ Đang deploy tất cả các Edge Functions..."
+          for fn_dir in supabase/functions/*; do
+            if [ -d "$fn_dir" ]; then
+              fn_name=$(basename "$fn_dir")
+              echo "📦 Deploying function: $fn_name..."
+              supabase functions deploy "$fn_name" --no-verify-jwt || echo "⚠️ Cảnh báo: Lỗi khi deploy $fn_name"
             fi
           done
 
