@@ -1,0 +1,6 @@
+{
+  "name": "Supabase Notifications Hub & NestJS Migration",
+  "description": "Comprehensive notification management system with Supabase Realtime, PostgreSQL schemas, multi-channel delivery, and NestJS-to-Supabase migration toolkit.",
+  "requestFramePermissions": ["notifications"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
