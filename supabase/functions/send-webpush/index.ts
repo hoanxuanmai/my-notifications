@@ -25,9 +25,20 @@ serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // 1. Set VAPID Details
-    const vapidSubject = Deno.env.get("VAPID_SUBJECT") || "mailto:hoanxuanmai@gmail.com";
-    const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY") || "BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U";
-    const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY") || "SAMPLE_VAPID_PRIVATE_KEY";
+    // Accept both naming conventions: VAPID_* (this function's original
+    // names) and WEB_PUSH_* (the convention used everywhere else in this
+    // project — .env files, the old NestJS backend, docs — and the one the
+    // Supabase project secrets are actually set under).
+    const vapidSubject =
+      Deno.env.get("VAPID_SUBJECT") || Deno.env.get("WEB_PUSH_CONTACT_EMAIL") || "mailto:hoanxuanmai@gmail.com";
+    const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY") || Deno.env.get("WEB_PUSH_PUBLIC_KEY");
+    const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY") || Deno.env.get("WEB_PUSH_PRIVATE_KEY");
+
+    if (!vapidPublicKey || !vapidPrivateKey) {
+      throw new Error(
+        "Missing VAPID keys: set VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY (or WEB_PUSH_PUBLIC_KEY/WEB_PUSH_PRIVATE_KEY) as Supabase project secrets."
+      );
+    }
 
     webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 

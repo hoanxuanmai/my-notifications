@@ -54,3 +54,6 @@ verify_jwt = false
 
 [functions.read-notification]
 verify_jwt = false
+
+[functions.send-webpush]
+verify_jwt = false

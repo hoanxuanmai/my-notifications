@@ -204,6 +204,27 @@ serve(async (req: Request) => {
       console.warn("Delivery log recording note:", logErr);
     }
 
+    // 5. Fan out to Web Push (best-effort — a missing/invalid VAPID config
+    // or zero subscriptions must not fail the webhook response).
+    try {
+      const { error: pushError } = await supabase.functions.invoke("send-webpush", {
+        body: {
+          notification_id: notification.id,
+          user_id: isValidUUID(targetUserId) ? targetUserId : null,
+          channel_id: targetChannelId,
+          title,
+          message,
+          action_url: body.actionUrl || body.action_url || null,
+          payload: metadata,
+        },
+      });
+      if (pushError) {
+        console.warn("send-webpush dispatch note:", pushError);
+      }
+    } catch (pushErr) {
+      console.warn("send-webpush dispatch error:", pushErr);
+    }
+
     const responseNotification = {
       ...notification,
       channel: foundChannel || (targetChannelId ? { id: targetChannelId, name: "Channel" } : undefined),
