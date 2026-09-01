@@ -1,5 +1,5 @@
-// Supabase Edge Function: send-notification
-// Replaces NestJS SendNotificationController & NotificationsService.create
+// Supabase Edge Function: webhooks
+// Handles incoming Webhook triggers (path-based /webhooks/:token, query token, or body payload)
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
@@ -59,9 +59,9 @@ serve(async (req: Request) => {
     // Extract params from URL (Path parameter or Query string)
     const reqUrl = new URL(req.url);
     const pathParts = reqUrl.pathname.split("/").filter(Boolean);
-    // e.g. /functions/v1/send-notification/webhook_token_xxx or /functions/v1/send-notification
+    // e.g. /functions/v1/webhooks/webhook_token_xxx or /functions/v1/webhooks or /functions/v1/send-notification
     const lastPathSegment = pathParts[pathParts.length - 1];
-    const pathToken = lastPathSegment && lastPathSegment !== "send-notification" && lastPathSegment !== "v1" ? lastPathSegment : null;
+    const pathToken = lastPathSegment && lastPathSegment !== "webhooks" && lastPathSegment !== "send-notification" && lastPathSegment !== "v1" ? lastPathSegment : null;
 
     const queryToken = reqUrl.searchParams.get("token") || reqUrl.searchParams.get("webhookToken") || reqUrl.searchParams.get("webhook_token");
     const queryChannelId = reqUrl.searchParams.get("channel_id") || reqUrl.searchParams.get("channelId") || reqUrl.searchParams.get("id");

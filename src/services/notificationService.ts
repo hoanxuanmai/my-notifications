@@ -887,6 +887,83 @@ class NotificationService {
     }
   }
 
+  public async getUnreadSummaryByChannel(): Promise<any[]> {
+    if (this.supabaseClient && this.config.isConnected) {
+      try {
+        const { data, error } = await this.supabaseClient.rpc('get_unread_summary_by_channel');
+        if (!error && data) {
+          return data;
+        }
+      } catch (err) {
+        console.warn('RPC get_unread_summary_by_channel error:', err);
+      }
+    }
+
+    // Local fallback calculation
+    return this.channels.map((ch) => {
+      const channelNotifs = this.notifications.filter((n) => n.channelId === ch.id);
+      return {
+        channelId: ch.id,
+        channelName: ch.name,
+        description: ch.description,
+        unreadCount: channelNotifs.filter((n) => !n.isRead && !n.read).length,
+        totalCount: channelNotifs.length,
+        lastNotificationAt: channelNotifs[0]?.createdAt || ch.createdAt,
+      };
+    });
+  }
+
+  public async cleanupExpiredRecords(): Promise<{ success: boolean; deletedNotificationsCount: number; deletedChannelsCount: number }> {
+    if (this.supabaseClient && this.config.isConnected) {
+      try {
+        const { data, error } = await this.supabaseClient.rpc('cleanup_expired_records');
+        if (!error && data) {
+          return data;
+        }
+      } catch (err) {
+        console.warn('RPC cleanup_expired_records error:', err);
+      }
+    }
+    return { success: true, deletedNotificationsCount: 0, deletedChannelsCount: 0 };
+  }
+
+  public async getAdminUsers(): Promise<any[]> {
+    if (this.supabaseClient && this.config.isConnected) {
+      try {
+        const { data, error } = await this.supabaseClient.rpc('get_admin_users');
+        if (!error && data) {
+          return data;
+        }
+      } catch (err) {
+        console.warn('RPC get_admin_users error:', err);
+      }
+    }
+    return [
+      {
+        id: 'hoanxuanmai-id',
+        email: 'hoanxuanmai@gmail.com',
+        name: 'Hoan Xuan Mai',
+        role: 'admin',
+        createdAt: new Date().toISOString(),
+        channelsCount: this.channels.length,
+        pushDevicesCount: 1,
+      },
+    ];
+  }
+
+  public async adminDeleteUser(userId: string): Promise<boolean> {
+    if (this.supabaseClient && this.config.isConnected) {
+      try {
+        const { error } = await this.supabaseClient.rpc('admin_delete_user', { p_user_id: userId });
+        return !error;
+      } catch (err) {
+        console.warn('RPC admin_delete_user error:', err);
+        return false;
+      }
+    }
+    return true;
+  }
+
   public disconnectSupabase() {
     if (this.supabaseClient && this.realtimeChannel) {
       this.supabaseClient.removeChannel(this.realtimeChannel);

@@ -84,8 +84,9 @@ export const SupabaseCliStudio: React.FC<SupabaseCliStudioProps> = ({ onConnectC
       } else if (cmdKey === 'deploy') {
         setSimulatedLog((prev) => [
           ...prev,
-          `Deploying functions (send-notification, kafka-bridge, cancel-notification, read-notification)...`,
-          `✔ Deployed Function send-notification on https://${projectRef}.supabase.co/functions/v1/send-notification`,
+          `Deploying functions (webhooks, send-webpush, kafka-bridge, cancel-notification, read-notification)...`,
+          `✔ Deployed Function webhooks on https://${projectRef}.supabase.co/functions/v1/webhooks`,
+          `✔ Deployed Function send-webpush on https://${projectRef}.supabase.co/functions/v1/send-webpush`,
           `✔ Deployed Function kafka-bridge on https://${projectRef}.supabase.co/functions/v1/kafka-bridge`,
           `✔ Deployed Function cancel-notification on https://${projectRef}.supabase.co/functions/v1/cancel-notification`,
           `✔ Deployed Function read-notification on https://${projectRef}.supabase.co/functions/v1/read-notification`,
@@ -139,7 +140,7 @@ site_url = "http://localhost:3000"
 jwt_expiry = 3600
 enable_signup = true
 
-[functions.send-notification]
+[functions.webhooks]
 verify_jwt = false
 
 [functions.kafka-bridge]
@@ -412,11 +413,11 @@ VALUES
 ON CONFLICT (id) DO NOTHING;`,
     },
     sendFn: {
-      name: 'supabase/functions/send-notification/index.ts',
+      name: 'supabase/functions/webhooks/index.ts',
       type: 'typescript',
-      description: 'Deno Edge Function replacing NestJS SendNotificationController. Handles payload validation, DB insertion, telemetry logging, and HTTP responses.',
-      code: `// Supabase Edge Function: send-notification
-// Replaces NestJS SendNotificationController & SendNotificationUseCase
+      description: 'Deno Edge Function replacing NestJS WebhooksController. Handles payload validation, DB insertion, telemetry logging, and HTTP responses.',
+      code: `// Supabase Edge Function: webhooks
+// Replaces NestJS WebhooksController & SendNotificationUseCase
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
@@ -647,7 +648,7 @@ serve(async (req: Request) => {
       id: 'deploy',
       title: '4. Triển khai các Supabase Edge Functions',
       desc: 'Deploy toàn bộ 4 hàm xử lý thông báo lên hạ tầng toàn cầu Deno Subhosting',
-      command: `npx supabase functions deploy send-notification --no-verify-jwt\nnpx supabase functions deploy kafka-bridge --no-verify-jwt\nnpx supabase functions deploy cancel-notification --no-verify-jwt\nnpx supabase functions deploy read-notification --no-verify-jwt`,
+      command: `npx supabase functions deploy webhooks --no-verify-jwt\nnpx supabase functions deploy send-webpush --no-verify-jwt\nnpx supabase functions deploy kafka-bridge --no-verify-jwt\nnpx supabase functions deploy cancel-notification --no-verify-jwt\nnpx supabase functions deploy read-notification --no-verify-jwt`,
     },
     {
       id: 'types',
@@ -847,7 +848,7 @@ serve(async (req: Request) => {
                   }`}
                 >
                   <Cpu className="h-3.5 w-3.5 text-purple-400" />
-                  <span>send-notification (Edge)</span>
+                  <span>webhooks (Edge)</span>
                 </button>
                 <button
                   onClick={() => setSelectedFile('kafkaFn')}

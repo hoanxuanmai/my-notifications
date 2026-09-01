@@ -69,8 +69,8 @@ Hệ thống cung cấp đầy đủ các RPC tương ứng 100% logic NestJS:
 
 ## 4. Edge Functions
 
-1. **`send-notification`**:
-   - Hỗ trợ gửi thông báo qua `channelId`, `webhookToken`, hoặc `recipientId`.
+1. **`webhooks`**:
+   - Hỗ trợ nhận Webhook từ bên thứ ba qua đường dẫn `/functions/v1/webhooks/:token`, `channelId`, `webhookToken`, hoặc `recipientId`.
    - Lưu vào bảng `public.notifications` và tạo bản ghi telemetry trong `public.delivery_logs`.
 2. **`channel-manager`**:
    - Endpoint HTTP quản lý tạo channel, thêm thành viên, lấy danh sách channel, thống kê chưa đọc.

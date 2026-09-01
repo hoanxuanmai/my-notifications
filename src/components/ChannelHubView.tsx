@@ -145,7 +145,7 @@ export const ChannelHubView: React.FC<ChannelHubViewProps> = ({ notifications = 
   const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
   const pathWebhookUrl = activeChannel ? `${currentOrigin}/api/webhooks/${activeChannel.webhookToken}` : '';
   const supabaseEdgeWebhookUrl = activeChannel 
-    ? `${supabaseUrl || 'https://<project-ref>.supabase.co'}/functions/v1/send-notification/${activeChannel.webhookToken}` 
+    ? `${supabaseUrl || 'https://<project-ref>.supabase.co'}/functions/v1/webhooks/${activeChannel.webhookToken}` 
     : '';
 
   const copyToClipboard = (text: string, type: 'token' | 'curl' | 'url') => {
