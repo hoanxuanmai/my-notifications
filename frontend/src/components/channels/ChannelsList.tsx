@@ -82,21 +82,21 @@ export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-3 sm:p-4 flex flex-col h-full border border-gray-200">
-      <div className="flex items-center justify-between gap-2 mb-3 pb-1 border-b border-gray-200">
-        <div className="min-w-0 flex flex-col items-center">
-          <h2 className="text-sm sm:text-base font-semibold text-gray-900 flex items-center gap-1">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-3 sm:p-4 flex flex-col h-full border border-gray-200 dark:border-gray-700">
+      <div className="flex items-center justify-between gap-2 mb-3 pb-1 border-b border-gray-200 dark:border-gray-700">
+        <div className="min-w-0 flex flex-col items-start">
+          <h2 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-1">
             Channels
             <button
               type="button"
               onClick={handleReload}
-              className="ml-1 p-1 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="ml-1 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
               aria-label="Reload channels"
               disabled={loading || reloading}
             >
               {/* Heroicons Arrow Path */}
               <svg
-                className={`w-5 h-5 text-gray-500 ${loading || reloading ? 'animate-spin' : ''}`}
+                className={`w-5 h-5 text-gray-500 dark:text-gray-400 ${loading || reloading ? 'animate-spin' : ''}`}
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -110,7 +110,7 @@ export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
               </svg>
             </button>
           </h2>
-          <p className="mt-0.5 text-[11px] text-gray-500 hidden sm:block">
+          <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400 hidden sm:block">
             Manage your notification groups
           </p>
         </div>
@@ -123,9 +123,9 @@ export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
       </div>
 
       {loading && channels.length === 0 ? (
-           <div className="py-2 text-sm text-gray-500 flex-1 overflow-y-auto">Loading channels...</div>
+           <div className="py-2 text-sm text-gray-500 dark:text-gray-400 flex-1 overflow-y-auto">Loading channels...</div>
       ) : (
-           <div className="space-y-2 flex-1 overflow-y-auto">
+           <div className="space-y-2 flex-1 min-h-0 overflow-y-auto overscroll-contain -mx-1 px-1">
         {sortedChannels.map(({ channel, lastNotification }) => {
           const unreadCount = unreadByChannelId[channel.id] ?? 0;
 
@@ -140,40 +140,40 @@ export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
                 router.replace('?' + params.toString(), { scroll: false });
                 onChannelSelected?.();
               }}
-              className={`p-3 rounded cursor-pointer border transition ${
+              className={`p-3 rounded-lg cursor-pointer border transition ${
                 selectedChannelId === channel.id
-                ? 'bg-blue-50 border-blue-200'
-                : 'bg-white border-gray-200 hover:bg-gray-50'
+                ? 'bg-blue-50 border-blue-300 dark:bg-blue-950/50 dark:border-blue-700'
+                : 'bg-white border-gray-200 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700/60'
               }`}
             >
               <div className="flex justify-between items-start gap-2">
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-gray-800 text-sm sm:text-base truncate">{channel.name}</h3>
+                  <h3 className="font-medium text-gray-800 dark:text-gray-100 text-sm sm:text-base truncate">{channel.name}</h3>
                   {lastNotification ? (
                     <>
-                      <p className="mt-1 text-xs text-gray-600 line-clamp-1">
+                      <p className="mt-1 text-xs text-gray-600 dark:text-gray-300 line-clamp-1">
                         {lastNotification.title}
                       </p>
-                      <p className="mt-0.5 text-[11px] text-gray-400">
+                      <p className="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500">
                         {format(new Date(lastNotification.createdAt), 'PPp')}
                       </p>
                     </>
                   ) : (
                     channel.description && (
-                        <p className="mt-1 text-xs text-gray-600 line-clamp-2">
+                        <p className="mt-1 text-xs text-gray-600 dark:text-gray-300 line-clamp-2">
                         {channel.description}
                       </p>
                     )
                   )}
                   {unreadCount > 0 && (
-                    <p className="text-xs text-blue-600 mt-1">
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
                       {unreadCount} unread
                     </p>
                   )}
                 </div>
                 <button
                   onClick={(e) => handleDeleteChannel(channel.id, e)}
-                  className="text-xs text-red-500 hover:text-red-700 px-1"
+                  className="flex-shrink-0 -mr-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 text-lg leading-none"
                   aria-label="Delete channel"
                 >
                   ×
@@ -197,16 +197,6 @@ export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
           }
         }}
       />
-      <ConfirmModal
-        open={confirmOpen}
-        title="Delete Channel"
-        description="Are you sure you want to delete this channel?"
-        confirmText="Delete"
-        cancelText="Cancel"
-        onConfirm={handleConfirmDelete}
-        onCancel={() => { setConfirmOpen(false); setPendingDeleteId(null); }}
-      />
-      {/* AlertModal is now rendered globally in layout */}
       <ConfirmModal
         open={confirmOpen}
         title="Delete Channel"

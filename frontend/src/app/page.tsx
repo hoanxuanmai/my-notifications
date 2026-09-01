@@ -108,24 +108,24 @@ function MainContent() {
       <main className="min-h-screen px-3 py-3 sm:p-6 lg:p-8 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
         <div className="max-w-7xl mx-auto flex flex-col min-h-[calc(100vh-1.5rem)] sm:min-h-[calc(100vh-3rem)]">
           {/* Header */}
-          <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6 flex-shrink-0">
+          <div className="flex items-center justify-between gap-2 sm:gap-3 mb-4 sm:mb-6 flex-shrink-0">
             {/* Left: mobile sidebar toggle */}
             <button
               type="button"
               onClick={() => setIsSidebarOpen(true)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white dark:bg-gray-800 backdrop-blur hover:bg-gray-100 text-gray-700 dark:text-gray-200 shadow-sm sm:hidden border border-gray-200 dark:border-gray-700"
+              className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white dark:bg-gray-800 backdrop-blur hover:bg-gray-100 text-gray-700 dark:text-gray-200 shadow-sm sm:hidden border border-gray-200 dark:border-gray-700"
               aria-label="Open channels list"
             >
               <span className="text-lg">☰</span>
             </button>
 
             {/* Center: app title */}
-            <div className="flex items-center gap-2">
-              <span className="inline-block w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+            <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-initial">
+              <span className="inline-block w-2.5 h-2.5 flex-shrink-0 rounded-full bg-emerald-500 animate-pulse" />
+              <h1 className="text-lg sm:text-2xl font-bold tracking-tight truncate">
                 My Notifications
               </h1>
-              <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 font-medium">
+              <span className="hidden sm:inline ml-1 text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 font-medium">
                 Supabase
               </span>
             </div>
@@ -135,23 +135,22 @@ function MainContent() {
               <button
                 type="button"
                 onClick={() => router.push('/settings')}
-                className="flex items-center justify-end gap-3 rounded-full px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-sm"
+                className="flex flex-shrink-0 items-center justify-end gap-2 rounded-full p-1 sm:px-3 sm:py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-sm"
+                aria-label="Open settings"
               >
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white flex-shrink-0">
-                    {(user.username || user.email || '?')
-                      .toString()
-                      .trim()
-                      .charAt(0)
-                      .toUpperCase()}
-                  </div>
-                  <span className="hidden sm:inline text-xs font-medium text-gray-800 dark:text-gray-200 truncate max-w-[160px]">
-                    {user.username || user.email}
-                  </span>
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white flex-shrink-0">
+                  {(user.username || user.email || '?')
+                    .toString()
+                    .trim()
+                    .charAt(0)
+                    .toUpperCase()}
                 </div>
+                <span className="hidden sm:inline text-xs font-medium text-gray-800 dark:text-gray-200 truncate max-w-[160px]">
+                  {user.username || user.email}
+                </span>
               </button>
             ) : (
-              <div className="h-8 w-8 sm:h-9 sm:w-9" />
+              <div className="h-9 w-9 flex-shrink-0" />
             )}
           </div>
 

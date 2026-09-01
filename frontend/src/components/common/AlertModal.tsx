@@ -9,13 +9,13 @@ export default function AlertModal() {
   const onClose = useAlertStore((s) => s.closeAlert);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-xs animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 w-full max-w-xs animate-fade-in">
         <h3 className="text-lg font-semibold mb-2">{title}</h3>
-        <p className="text-sm text-gray-600 mb-4">{message}</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{message}</p>
         <div className="flex justify-end">
           <button
-            className="px-3 py-1 rounded bg-blue-500 hover:bg-blue-600 text-white"
+            className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium"
             onClick={onClose}
           >
             OK

@@ -60,32 +60,52 @@ const MESSAGES = {
   }
 };
 
+const DISMISS_KEY = 'install_overlay_dismissed_at';
+const SNOOZE_MS = 7 * 24 * 60 * 60 * 1000; // re-ask at most once a week
+
 export default function SmartInstallOverlay() {
   const [show, setShow] = useState(false);
   const [platform, setPlatform] = useState("other");
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [lang, setLang] = useState<'vi'|'en'>('en');
-// ...existing code...
+
+  const snoozed = () => {
+    try {
+      const ts = Number(localStorage.getItem(DISMISS_KEY) || 0);
+      return ts > 0 && Date.now() - ts < SNOOZE_MS;
+    } catch {
+      return false;
+    }
+  };
+
+  const dismiss = () => {
+    setShow(false);
+    try {
+      localStorage.setItem(DISMISS_KEY, String(Date.now()));
+    } catch {
+      /* ignore */
+    }
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     setPlatform(getPlatform());
-    if (isStandalone()) return;
+    if (isStandalone() || snoozed()) return;
 
     // Detect language
     const navLang = (navigator.language || navigator.languages?.[0] || 'en').toLowerCase();
     setLang(navLang.startsWith('vi') ? 'vi' : 'en');
 
-    // ...existing code...
-    // Listen for beforeinstallprompt (Android/Chrome)
+    // Listen for beforeinstallprompt (Android/Chrome). Only nag on mobile —
+    // a persistent install card over the content on desktop is just noise.
     const handler = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      setShow(true);
+      if (getPlatform() === "android") setShow(true);
     };
     window.addEventListener("beforeinstallprompt", handler);
 
-    // iOS: show if not in standalone
+    // iOS has no beforeinstallprompt — show the manual hint (once per week).
     if (getPlatform() === "ios") {
       setShow(true);
     }
@@ -98,11 +118,11 @@ export default function SmartInstallOverlay() {
   if (!show) return null;
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-xl p-4 max-w-sm w-full mx-2 mb-6 animate-fade-in-up border border-gray-200 dark:border-neutral-700 relative">
+    <div className="fixed inset-x-0 bottom-0 z-[1000] flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pointer-events-none">
+      <div className="pointer-events-auto bg-white dark:bg-neutral-900 rounded-xl shadow-xl p-4 max-w-sm w-full animate-fade-in-up border border-gray-200 dark:border-neutral-700 relative">
         <button
           className="absolute right-2 top-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl"
-          onClick={() => setShow(false)}
+          onClick={dismiss}
           aria-label="Đóng"
         >
           ×

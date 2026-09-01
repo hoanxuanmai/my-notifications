@@ -132,11 +132,11 @@ export default function ChannelSettingsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-3 py-4 sm:p-6">
-      <div className="relative w-full max-w-lg bg-white text-gray-900 rounded-lg shadow-lg p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
+      <div className="relative w-full max-w-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6 max-h-[90vh] overflow-y-auto overscroll-contain">
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 text-gray-700 shadow hover:bg-gray-300 text-sm leading-none"
+          className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 text-lg leading-none"
           aria-label="Close channel settings"
         >
           ×
@@ -151,13 +151,13 @@ export default function ChannelSettingsModal({
             <select
               value={template}
               onChange={handleTemplateChange}
-              className="border border-gray-200 rounded px-2 py-1 text-xs bg-white dark:bg-gray-900 dark:text-gray-100"
+              className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-xs bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
               disabled={savingTemplate}
             >
               <option value="default">Default</option>
               <option value="slack">Slack</option>
             </select>
-            {savingTemplate && <span className="ml-2 text-xs text-gray-400">Saving…</span>}
+            {savingTemplate && <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">Saving…</span>}
           </div>
           <div>
             <h3 className="text-sm font-medium mb-1">Webhook URL</h3>
@@ -165,40 +165,40 @@ export default function ChannelSettingsModal({
               <input
                 readOnly
                 value={webhookUrl}
-                className="flex-1 border border-gray-200 rounded px-2 py-1 text-xs bg-gray-50 dark:bg-gray-900 dark:text-gray-100"
+                className="flex-1 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-xs bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-200"
               />
               <button
                 type="button"
                 onClick={handleCopyWebhook}
-                className="px-2 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200"
+                className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
               >
                 {copyState === 'copied' ? 'Copied' : 'Copy'}
               </button>
             </div>
-            <p className="mt-1 text-[10px] text-gray-500">
+            <p className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
               POST JSON with a <code>title</code> and <code>message</code> to this URL to create a notification in this channel.
             </p>
           </div>
 
           <div>
             <h3 className="text-sm font-medium mb-2">Members</h3>
-            {loading && <p className="text-xs text-gray-500">Loading members...</p>}
+            {loading && <p className="text-xs text-gray-500 dark:text-gray-400">Loading members...</p>}
             {error && <p className="text-xs text-red-500 mb-1">{error}</p>}
 
-            <div className="max-h-48 overflow-y-auto border rounded p-2 mb-3 text-sm">
+            <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded p-2 mb-3 text-sm">
               {members.length === 0 && !loading && (
-                <p className="text-xs text-gray-500">No members yet.</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">No members yet.</p>
               )}
               {members.map((member) => {
                 const label = member.name || member.username || member.email || member.id;
                 return (
                   <div
                     key={member.id}
-                    className="flex items-center justify-between py-1 border-b last:border-b-0 border-gray-100"
+                    className="flex items-center justify-between py-1 border-b last:border-b-0 border-gray-100 dark:border-gray-700"
                   >
                     <div>
                       <div>{label}</div>
-                      <div className="text-[10px] text-gray-500">{member.email}</div>
+                      <div className="text-[10px] text-gray-500 dark:text-gray-400">{member.email}</div>
                     </div>
                     {isOwner && (
                       <button
@@ -222,7 +222,7 @@ export default function ChannelSettingsModal({
                     placeholder="User email to add"
                     value={newUserEmail}
                     onChange={(e) => setNewUserEmail(e.target.value)}
-                    className="flex-1 border border-gray-200 rounded px-2 py-1 text-xs bg-white dark:bg-gray-900 dark:text-gray-100"
+                    className="flex-1 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-xs bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
                   />
                   <button
                     type="button"
@@ -232,12 +232,12 @@ export default function ChannelSettingsModal({
                     Add
                   </button>
                 </div>
-                <p className="mt-1 text-[10px] text-gray-500">
+                <p className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
                   Enter the user email to add them as a member of this channel.
                 </p>
               </>
             ) : (
-              <div className="mt-1 flex flex-col gap-2 text-[10px] text-gray-500">
+              <div className="mt-1 flex flex-col gap-2 text-[10px] text-gray-500 dark:text-gray-400">
                 <p>Only the channel owner can add or remove other members.</p>
                 {user && (
                   <button

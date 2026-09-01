@@ -33,43 +33,41 @@ export default function NotificationItem({ notification, isSlack, markAsRead, se
   return (
     <div
       onClick={() => !notification.read && markAsRead(notification.id)}
-      className={`relative p-3 sm:p-4 rounded border-l-4 cursor-pointer transition w-full max-w-full ${
+      className={`relative p-3 sm:p-4 rounded-lg border border-l-4 transition w-full max-w-full ${
         notification.read
-          ? 'bg-gray-50 dark:bg-gray-900 dark:text-gray-100'
-        : 'bg-white dark:bg-gray-800 dark:text-gray-100'
-      } ${borderColor} hover:shadow-md`}
+          ? 'bg-gray-50 border-gray-200 dark:bg-gray-800/40 dark:border-gray-800 dark:text-gray-300'
+          : 'bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 cursor-pointer hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600'
+      } ${borderColor}`}
     >
       <NotificationMessageWithToggle
         notification={notification}
         isSlack={isSlack}
         headContent={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span
-              className={`px-2 py-1 rounded text-xs font-medium ${typeColors[notification.type]}`}
+              className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${typeColors[notification.type]}`}
             >
               {notification.type}
             </span>
             <span
-              className={`text-xs font-medium ${priorityColors[notification.priority]}`}
+              className={`text-[11px] font-medium ${priorityColors[notification.priority]}`}
             >
               {notification.priority}
             </span>
             {!notification.read && (
-              <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full" aria-label="unread"></span>
             )}
-            {/* Show less button will be injected here if expanded */}
           </div>
         }
         title={notification.title}
       />
-      {!selectedChannelId && notification.channel && (
-        <p className="text-xs text-gray-500">
-          Channel: {notification.channel.name}
-        </p>
-      )}
-      <p className="text-xs text-gray-400 mt-1">
-        {format(new Date(notification.createdAt), 'PPp')}
-      </p>
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] text-gray-400 dark:text-gray-500">
+        {!selectedChannelId && notification.channel && (
+          <span className="truncate max-w-[45%]">{notification.channel.name}</span>
+        )}
+        {!selectedChannelId && notification.channel && <span aria-hidden>·</span>}
+        <span>{format(new Date(notification.createdAt), 'PPp')}</span>
+      </div>
     </div>
   );
 }
@@ -97,21 +95,23 @@ function NotificationMessageWithToggle({ notification, isSlack, headContent, tit
   const tooLong = lineCount > 8 || charCount > 600;
   return (
     <div className="relative">
-      <div className="sticky top-0 left-0 right-0 z-10 bg-blue-50/90 border-b border-blue-200 shadow-sm backdrop-blur pb-1 flex items-center justify-between px-2 max-w-full" style={{marginBottom: 0}}>
-        <div className="flex-1 min-w-0">
+      <div className="mb-1.5 flex items-start justify-between gap-2 max-w-full">
+        <div className="flex-1 min-w-0 space-y-1">
           {headContent}
-          <h3 className="font-semibold text-gray-800 truncate">{title}</h3>
+          <h3 className="font-semibold text-gray-800 dark:text-gray-100 text-sm sm:text-base leading-snug break-words">
+            {title}
+          </h3>
         </div>
         {tooLong && expanded && (
           <button
-            className="text-xs text-blue-500 hover:underline ml-2"
+            className="flex-shrink-0 text-xs text-blue-500 hover:underline"
             onClick={() => setExpanded(false)}
           >
             Show less
           </button>
         )}
       </div>
-      <div className={(tooLong && !expanded ? 'max-h-40 overflow-hidden relative ' : '') + 'break-words w-full max-w-full bg-transparent dark:bg-gray-900 dark:text-gray-100'}>
+      <div className={(tooLong && !expanded ? 'max-h-40 overflow-hidden relative ' : '') + 'text-sm text-gray-700 dark:text-gray-200 break-words w-full max-w-full'}>
         {isSlack ? parseSlackMessage(notification) : notification.message}
       </div>
       {tooLong && !expanded && (

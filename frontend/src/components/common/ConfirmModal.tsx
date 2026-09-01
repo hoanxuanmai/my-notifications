@@ -21,19 +21,19 @@ export default function ConfirmModal({
 }: ConfirmModalProps) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-xs animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 w-full max-w-xs animate-fade-in">
         <h3 className="text-lg font-semibold mb-2">{title}</h3>
-        <p className="text-sm text-gray-600 mb-4">{description}</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{description}</p>
         <div className="flex justify-end gap-2">
           <button
-            className="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300 text-gray-700"
+            className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium"
             onClick={onCancel}
           >
             {cancelText}
           </button>
           <button
-            className="px-3 py-1 rounded bg-red-500 hover:bg-red-600 text-white"
+            className="px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium"
             onClick={onConfirm}
           >
             {confirmText}

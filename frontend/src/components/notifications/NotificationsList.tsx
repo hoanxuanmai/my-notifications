@@ -76,7 +76,7 @@ export default function NotificationsList() {
   };
 
   if (loading && notifications.length === 0) {
-    return <div className="p-3 sm:p-4">Loading notifications...</div>;
+    return <div className="p-3 sm:p-4 text-sm text-gray-500 dark:text-gray-400">Loading notifications...</div>;
   }
 
   const title = selectedChannel ? selectedChannel.name : 'Notifications';
@@ -85,22 +85,22 @@ export default function NotificationsList() {
     : hasMoreGlobal;
 
   return (
-    <div className="relative bg-transparent md:bg-white md:rounded-lg md:shadow p-2.5 sm:p-4 flex flex-col max-h-[calc(100vh-5.5rem)] sm:max-h-[calc(100vh-7rem)]">
-      <div className="flex items-start justify-between gap-3 flex-wrap mb-3 pb-1 border-b border-gray-200">
+    <div className="relative bg-transparent md:bg-white md:dark:bg-gray-900 md:rounded-xl md:shadow-sm md:border md:border-gray-200 md:dark:border-gray-800 p-2.5 sm:p-4 flex flex-col h-full max-h-[calc(100vh-5.5rem)] sm:max-h-[calc(100vh-7rem)]">
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <h2 className="text-lg sm:text-xl font-semibold truncate flex items-center gap-1" title={title}>
+            <h2 className="text-lg sm:text-xl font-semibold truncate flex items-center gap-1 text-gray-900 dark:text-gray-100" title={title}>
               {title}
               <button
                 type="button"
                 onClick={handleReload}
-                className="ml-1 p-1 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="ml-1 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
                 aria-label="Reload notifications"
                 disabled={loading || reloading}
               >
                 {/* Heroicons Arrow Path */}
                 <svg
-                  className={`w-5 h-5 text-gray-500 ${loading || reloading ? 'animate-spin' : ''}`}
+                  className={`w-5 h-5 text-gray-500 dark:text-gray-400 ${loading || reloading ? 'animate-spin' : ''}`}
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -118,7 +118,7 @@ export default function NotificationsList() {
               <button
                 type="button"
                 onClick={() => setSettingsChannel(selectedChannel as Channel)}
-                className="inline-flex h-8 w-8 sm:h-8 sm:w-auto items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:px-3 sm:text-[11px]"
+                className="inline-flex h-8 w-8 sm:h-8 sm:w-auto items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs sm:px-3 sm:text-[11px]"
                 aria-label="Channel settings"
               >
                 <span className="sm:hidden text-lg leading-none">⚙</span>
@@ -127,12 +127,12 @@ export default function NotificationsList() {
             )}
           </div>
           {selectedChannel?.description && (
-            <p className="mt-1 text-xs text-gray-600 line-clamp-2">
+            <p className="mt-1 text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
               {selectedChannel.description}
             </p>
           )}
           {unreadCount > 0 && (
-            <p className="text-xs sm:text-sm text-gray-600 mt-1">
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
               {unreadCount} unread
             </p>
           )}
@@ -140,7 +140,7 @@ export default function NotificationsList() {
         {unreadCount > 0 && (
           <button
             onClick={() => markAllAsRead(selectedChannelId || undefined)}
-            className="inline-flex items-center justify-center h-8 w-8 sm:h-8 sm:w-auto px-0 sm:px-3 text-xs sm:text-[11px] bg-gray-500 text-white rounded-full hover:bg-gray-600 ml-auto"
+            className="inline-flex items-center justify-center h-8 w-8 sm:h-8 sm:w-auto px-0 sm:px-3 text-xs sm:text-[11px] bg-gray-600 text-white rounded-full hover:bg-gray-700 dark:bg-gray-600 dark:hover:bg-gray-500 ml-auto flex-shrink-0"
             aria-label="Mark all as read"
           >
             <span className="sm:hidden text-lg leading-none">✓</span>
@@ -152,10 +152,10 @@ export default function NotificationsList() {
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="space-y-2 flex-1 overflow-y-auto"
+        className="space-y-2 flex-1 min-h-0 overflow-y-auto overscroll-contain -mx-1 px-1"
       >
         {filteredNotifications.length === 0 ? (
-          <div className="text-center text-gray-500 py-6 sm:py-8">
+          <div className="text-center text-gray-500 dark:text-gray-400 py-6 sm:py-8">
             No notifications yet
           </div>
         ) : (
