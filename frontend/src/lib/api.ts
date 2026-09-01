@@ -403,12 +403,11 @@ export const notificationsApi = {
 
   getUnreadSummary: async (): Promise<Record<string, number>> => {
     try {
-      // Returns a JSONB map of { [channelId]: unreadCount }, not an array of rows
-      const { data, error } = await supabase.rpc('get_channels_unread_summary');
-      if (!error && data && typeof data === 'object') {
+      const { data, error } = await supabase.rpc('get_unread_summary_by_channel');
+      if (!error && Array.isArray(data)) {
         const summary: Record<string, number> = {};
-        Object.entries(data as Record<string, number>).forEach(([channelId, count]) => {
-          summary[channelId] = count || 0;
+        data.forEach((item: any) => {
+          summary[item.channelId] = item.unreadCount || 0;
         });
         return summary;
       }
@@ -447,10 +446,9 @@ export const pushApi = {
           user_id: userId,
           endpoint: subJson.endpoint,
           p256dh: subJson.keys?.p256dh,
-          auth: subJson.keys?.auth,
-          user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+          auth_token: subJson.keys?.auth,
           updated_at: new Date().toISOString(),
-        })
+        }, { onConflict: 'endpoint' })
         .select('id')
         .single();
 
