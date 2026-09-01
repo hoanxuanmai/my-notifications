@@ -214,7 +214,46 @@ ALTER TABLE public.delivery_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notification_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notification_templates ENABLE ROW LEVEL SECURITY;
 
--- 12. Row Level Security Policies
+-- 12. Security Definer Helper Functions (Bypasses RLS to avoid infinite recursion)
+CREATE OR REPLACE FUNCTION public.is_channel_member(p_channel_id UUID, p_user_id UUID DEFAULT auth.uid())
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.channel_members
+    WHERE channel_id = p_channel_id AND user_id = p_user_id
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_channel_owner(p_channel_id UUID, p_user_id UUID DEFAULT auth.uid())
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.channels
+    WHERE id = p_channel_id AND user_id = p_user_id
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_user_channel_ids(p_user_id UUID DEFAULT auth.uid())
+RETURNS SETOF UUID
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT id FROM public.channels WHERE user_id = p_user_id
+  UNION
+  SELECT channel_id FROM public.channel_members WHERE user_id = p_user_id;
+$$;
+
+-- 13. Row Level Security Policies
 
 -- Channels Policies:
 -- Owner or Member can view active channels
@@ -224,9 +263,9 @@ CREATE POLICY "channels_select"
   FOR SELECT 
   TO authenticated, anon
   USING (
-    user_id = auth.uid() 
-    OR id IN (SELECT channel_id FROM public.channel_members WHERE user_id = auth.uid())
-    OR auth.uid() IS NULL
+    auth.uid() IS NULL
+    OR user_id = auth.uid() 
+    OR public.is_channel_member(id, auth.uid())
   );
 
 DROP POLICY IF EXISTS "channels_insert" ON public.channels;
@@ -266,10 +305,10 @@ CREATE POLICY "channel_members_select"
   FOR SELECT 
   TO authenticated, anon
   USING (
-    user_id = auth.uid()
-    OR channel_id IN (SELECT id FROM public.channels WHERE user_id = auth.uid())
-    OR channel_id IN (SELECT channel_id FROM public.channel_members WHERE user_id = auth.uid())
-    OR auth.uid() IS NULL
+    auth.uid() IS NULL
+    OR user_id = auth.uid()
+    OR public.is_channel_owner(channel_id, auth.uid())
+    OR public.is_channel_member(channel_id, auth.uid())
   );
 
 DROP POLICY IF EXISTS "channel_members_insert" ON public.channel_members;
@@ -278,7 +317,7 @@ CREATE POLICY "channel_members_insert"
   FOR INSERT 
   TO authenticated, anon, service_role
   WITH CHECK (
-    channel_id IN (SELECT id FROM public.channels WHERE user_id = auth.uid())
+    public.is_channel_owner(channel_id, auth.uid())
     OR auth.uid() IS NULL
   );
 
@@ -288,7 +327,7 @@ CREATE POLICY "channel_members_delete"
   FOR DELETE 
   TO authenticated, anon, service_role
   USING (
-    channel_id IN (SELECT id FROM public.channels WHERE user_id = auth.uid())
+    public.is_channel_owner(channel_id, auth.uid())
     OR user_id = auth.uid()
     OR auth.uid() IS NULL
   );
@@ -317,15 +356,11 @@ CREATE POLICY "notifications_select_policy"
   FOR SELECT 
   TO authenticated, anon
   USING (
-    user_id = auth.uid() 
+    auth.uid() IS NULL
+    OR user_id = auth.uid() 
     OR auth.uid()::text = recipient_id 
     OR recipient_id IN ('all', 'broadcast')
-    OR (channel_id IS NOT NULL AND channel_id IN (
-        SELECT id FROM public.channels WHERE user_id = auth.uid()
-        UNION
-        SELECT channel_id FROM public.channel_members WHERE user_id = auth.uid()
-    ))
-    OR auth.uid() IS NULL
+    OR (channel_id IS NOT NULL AND channel_id IN (SELECT public.get_user_channel_ids(auth.uid())))
   );
 
 DROP POLICY IF EXISTS "notifications_update_policy" ON public.notifications;
@@ -334,24 +369,16 @@ CREATE POLICY "notifications_update_policy"
   FOR UPDATE 
   TO authenticated, anon, service_role
   USING (
-    user_id = auth.uid() 
+    auth.uid() IS NULL
+    OR user_id = auth.uid() 
     OR auth.uid()::text = recipient_id 
-    OR (channel_id IS NOT NULL AND channel_id IN (
-        SELECT id FROM public.channels WHERE user_id = auth.uid()
-        UNION
-        SELECT channel_id FROM public.channel_members WHERE user_id = auth.uid()
-    ))
-    OR auth.uid() IS NULL
+    OR (channel_id IS NOT NULL AND channel_id IN (SELECT public.get_user_channel_ids(auth.uid())))
   )
   WITH CHECK (
-    user_id = auth.uid() 
+    auth.uid() IS NULL
+    OR user_id = auth.uid() 
     OR auth.uid()::text = recipient_id 
-    OR (channel_id IS NOT NULL AND channel_id IN (
-        SELECT id FROM public.channels WHERE user_id = auth.uid()
-        UNION
-        SELECT channel_id FROM public.channel_members WHERE user_id = auth.uid()
-    ))
-    OR auth.uid() IS NULL
+    OR (channel_id IS NOT NULL AND channel_id IN (SELECT public.get_user_channel_ids(auth.uid())))
   );
 
 DROP POLICY IF EXISTS "notifications_insert_policy" ON public.notifications;
@@ -367,11 +394,9 @@ CREATE POLICY "notifications_delete_policy"
   FOR DELETE 
   TO authenticated, anon, service_role
   USING (
-    user_id = auth.uid()
-    OR (channel_id IS NOT NULL AND channel_id IN (
-        SELECT id FROM public.channels WHERE user_id = auth.uid()
-    ))
-    OR auth.uid() IS NULL
+    auth.uid() IS NULL
+    OR user_id = auth.uid()
+    OR (channel_id IS NOT NULL AND public.is_channel_owner(channel_id, auth.uid()))
   );
 
 -- Delivery logs & Preferences policies

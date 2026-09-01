@@ -906,7 +906,7 @@ class NotificationService {
         channelId: ch.id,
         channelName: ch.name,
         description: ch.description,
-        unreadCount: channelNotifs.filter((n) => !n.isRead && !n.read).length,
+        unreadCount: channelNotifs.filter((n) => !n.isRead).length,
         totalCount: channelNotifs.length,
         lastNotificationAt: channelNotifs[0]?.createdAt || ch.createdAt,
       };

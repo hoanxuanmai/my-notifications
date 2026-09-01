@@ -39,6 +39,37 @@ VALUES
     '{"template":"slack"}'::jsonb,
     true,
     timezone('utc'::text, now()) + interval '1 year'
+  ),
+  (
+    '64c3f713-8c2f-44e1-9e44-a8233f2d4d24',
+    'Main Production Alerts',
+    'Production system incident alerts, webhook dispatches, and multi-user notifications',
+    'webhook_token_prod_64c3f713',
+    '{"template":"default"}'::jsonb,
+    true,
+    timezone('utc'::text, now()) + interval '1 year'
+  )
+ON CONFLICT (id) DO NOTHING;
+
+-- 3. Seed Channel Members
+INSERT INTO public.channel_members (
+  id,
+  channel_id,
+  role,
+  email
+)
+VALUES
+  (
+    'c0000000-0000-0000-0000-000000000001',
+    '64c3f713-8c2f-44e1-9e44-a8233f2d4d24',
+    'owner',
+    'hoanxuanmai@gmail.com'
+  ),
+  (
+    'c0000000-0000-0000-0000-000000000002',
+    '64c3f713-8c2f-44e1-9e44-a8233f2d4d24',
+    'admin',
+    'dev@aistudio.local'
   )
 ON CONFLICT (id) DO NOTHING;
 
@@ -115,6 +146,24 @@ VALUES
     true,
     false,
     '{"name":"Kafka Edge Bridge","role":"Event Pipeline"}'::jsonb
+  ),
+  (
+    '44444444-4444-4444-4444-444444444444',
+    '64c3f713-8c2f-44e1-9e44-a8233f2d4d24',
+    'hoanxuanmai',
+    'Production Channel Initialized & Active',
+    'Channel members and notifications embedded endpoint query verification completed successfully.',
+    'Channel members and notifications embedded endpoint query verification completed successfully.',
+    'system',
+    'in_app',
+    'success',
+    'high',
+    '{"status":"ready","channelId":"64c3f713-8c2f-44e1-9e44-a8233f2d4d24"}'::jsonb,
+    '{"status":"ready","channelId":"64c3f713-8c2f-44e1-9e44-a8233f2d4d24"}'::jsonb,
+    false,
+    false,
+    true,
+    '{"name":"Supabase Engine","role":"Core"}'::jsonb
   )
 ON CONFLICT (id) DO NOTHING;
 
