@@ -62,6 +62,11 @@ serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // A webhook is intentionally open: it accepts a message from ANY source
+    // with no Supabase session. The channel webhook token (in the path / query /
+    // header / body) is the only credential; a tokenless call targets a user
+    // directly via body.user_id / recipient_id.
+
     // Extract params from URL (Path parameter or Query string)
     const reqUrl = new URL(req.url);
     const pathParts = reqUrl.pathname.split("/").filter(Boolean);
@@ -211,7 +216,7 @@ serve(async (req: Request) => {
         body: {
           notification_id: notification.id,
           user_id: isValidUUID(targetUserId) ? targetUserId : null,
-          channel_id: targetChannelId,
+          channel_id: isValidUUID(targetChannelId) ? targetChannelId : null,
           title,
           message,
           action_url: body.actionUrl || body.action_url || null,
