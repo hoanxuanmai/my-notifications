@@ -39,10 +39,10 @@ serve(async (req: Request) => {
       JSON.stringify({ success: true, notification: data }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
+  } catch (err: any) {
+    const errorDetails = err?.message || err?.error_description || (typeof err === "object" ? JSON.stringify(err) : String(err));
     return new Response(
-      JSON.stringify({ success: false, error: message }),
+      JSON.stringify({ success: false, error: errorDetails, code: err?.code || "INTERNAL_ERROR" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

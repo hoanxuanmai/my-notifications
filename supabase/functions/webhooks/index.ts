@@ -6,6 +6,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
 };
 
 interface SendNotificationPayload {
@@ -38,6 +39,11 @@ interface SendNotificationPayload {
   ttlDays?: number;
 }
 
+function isValidUUID(str: unknown): boolean {
+  if (typeof str !== "string") return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+
 serve(async (req: Request) => {
   const startTime = Date.now();
 
@@ -59,7 +65,7 @@ serve(async (req: Request) => {
     // Extract params from URL (Path parameter or Query string)
     const reqUrl = new URL(req.url);
     const pathParts = reqUrl.pathname.split("/").filter(Boolean);
-    // e.g. /functions/v1/webhooks/webhook_token_xxx or /functions/v1/webhooks or /functions/v1/send-notification
+    // e.g. /functions/v1/webhooks/5a8065efaf6e78a9f2fddd71ae55e163
     const lastPathSegment = pathParts[pathParts.length - 1];
     const pathToken = lastPathSegment && lastPathSegment !== "webhooks" && lastPathSegment !== "send-notification" && lastPathSegment !== "v1" ? lastPathSegment : null;
 
@@ -76,7 +82,7 @@ serve(async (req: Request) => {
 
     if (!title || !message) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: title, and message/content" }),
+        JSON.stringify({ success: false, error: "Missing required fields: title, and message/content" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -84,41 +90,60 @@ serve(async (req: Request) => {
     let targetChannelId = body.channelId || body.channel_id || queryChannelId || null;
     const webhookToken = body.webhookToken || body.webhook_token || queryToken || pathToken || headerToken || null;
     let targetUserId = body.userId || body.user_id || null;
-    const targetRecipientId = body.recipientId || body.recipient_id || targetUserId || (targetChannelId ? `channel:${targetChannelId}` : 'broadcast');
 
-    // If webhook token is provided, look up channel
+    let foundChannel: Record<string, unknown> | null = null;
+
+    // 1. If webhook token is provided, look up channel
     if (webhookToken && !targetChannelId) {
-      const { data: foundChannel, error: channelError } = await supabase
-        .from("channels")
-        .select("id, user_id, name, is_active, expires_at")
-        .eq("webhook_token", webhookToken)
-        .single();
-
-      if (channelError || !foundChannel) {
-        return new Response(
-          JSON.stringify({ error: "Invalid or expired webhookToken" }),
-          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      targetChannelId = foundChannel.id;
-      if (!targetUserId) {
-        targetUserId = foundChannel.user_id;
-      }
-    }
-
-    // If targetChannelId is provided, verify channel exists
-    if (targetChannelId) {
       const { data: ch } = await supabase
         .from("channels")
-        .select("id, user_id, name")
-        .eq("id", targetChannelId)
-        .single();
+        .select("id, user_id, name, is_active, expires_at, description, webhook_token")
+        .eq("webhook_token", webhookToken)
+        .maybeSingle();
 
-      if (ch && !targetUserId) {
-        targetUserId = ch.user_id;
+      if (ch) {
+        foundChannel = ch;
+        targetChannelId = ch.id;
+        if (!targetUserId && ch.user_id) {
+          targetUserId = ch.user_id;
+        }
+      } else {
+        // Check if webhookToken is a UUID channel_id
+        if (isValidUUID(webhookToken)) {
+          const { data: chById } = await supabase
+            .from("channels")
+            .select("id, user_id, name, is_active, expires_at, description, webhook_token")
+            .eq("id", webhookToken)
+            .maybeSingle();
+
+          if (chById) {
+            foundChannel = chById;
+            targetChannelId = chById.id;
+            if (!targetUserId && chById.user_id) {
+              targetUserId = chById.user_id;
+            }
+          }
+        }
       }
     }
+
+    // 2. If targetChannelId is provided, verify channel exists
+    if (targetChannelId && !foundChannel) {
+      const { data: ch } = await supabase
+        .from("channels")
+        .select("id, user_id, name, is_active, expires_at, description, webhook_token")
+        .eq("id", targetChannelId)
+        .maybeSingle();
+
+      if (ch) {
+        foundChannel = ch;
+        if (!targetUserId && ch.user_id) {
+          targetUserId = ch.user_id;
+        }
+      }
+    }
+
+    const targetRecipientId = body.recipientId || body.recipient_id || (targetUserId ? String(targetUserId) : null) || (targetChannelId ? `channel:${targetChannelId}` : 'broadcast');
 
     const deliveryChannel = body.channel || 'in_app';
     const notifType = body.type || 'info';
@@ -128,12 +153,12 @@ serve(async (req: Request) => {
     const ttlDays = body.ttlDays || 3;
     const expiresAt = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000).toISOString();
 
-    // 1. Insert into public.notifications
+    // 3. Insert into public.notifications
     const { data: notification, error: insertError } = await supabase
       .from("notifications")
       .insert({
-        channel_id: targetChannelId,
-        user_id: targetUserId,
+        channel_id: isValidUUID(targetChannelId) ? targetChannelId : null,
+        user_id: isValidUUID(targetUserId) ? targetUserId : null,
         recipient_id: targetRecipientId,
         title: title,
         message: message,
@@ -151,16 +176,7 @@ serve(async (req: Request) => {
         sender: body.sender || { name: "Notification Hub", role: "Dispatcher" },
         expires_at: expiresAt,
       })
-      .select(`
-        *,
-        channel:channels (
-          id,
-          name,
-          description,
-          webhook_token,
-          user_id
-        )
-      `)
+      .select()
       .single();
 
     if (insertError) {
@@ -169,33 +185,49 @@ serve(async (req: Request) => {
 
     const latencyMs = Date.now() - startTime;
 
-    // 2. Telemetry: Log to delivery_logs
-    await supabase.from("delivery_logs").insert({
-      notification_id: notification.id,
-      channel: deliveryChannel,
-      status: "delivered",
-      latency_ms: latencyMs,
-      attempt_count: 1,
-      provider: "supabase_edge_function",
-      metadata: {
-        dispatchedVia: "edge_function_send_notification",
-        channelId: targetChannelId,
-        recipientId: targetRecipientId,
-      },
-    });
+    // 4. Telemetry: Log to delivery_logs asynchronously
+    try {
+      await supabase.from("delivery_logs").insert({
+        notification_id: notification.id,
+        channel: deliveryChannel,
+        status: "delivered",
+        latency_ms: latencyMs,
+        attempt_count: 1,
+        provider: "supabase_edge_function",
+        metadata: {
+          dispatchedVia: "edge_function_webhooks",
+          channelId: targetChannelId,
+          recipientId: targetRecipientId,
+        },
+      });
+    } catch (logErr) {
+      console.warn("Delivery log recording note:", logErr);
+    }
+
+    const responseNotification = {
+      ...notification,
+      channel: foundChannel || (targetChannelId ? { id: targetChannelId, name: "Channel" } : undefined),
+    };
 
     return new Response(
       JSON.stringify({
         success: true,
-        notification,
+        notification: responseNotification,
         latencyMs,
       }),
       { status: 201, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
+  } catch (err: any) {
+    const errorDetails = err?.message || err?.error_description || (typeof err === "object" ? JSON.stringify(err) : String(err));
+    console.error("Webhook processing error:", err);
     return new Response(
-      JSON.stringify({ success: false, error: message }),
+      JSON.stringify({
+        success: false,
+        error: errorDetails,
+        code: err?.code || "INTERNAL_ERROR",
+        hint: err?.hint || undefined,
+        details: err?.details || undefined,
+      }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
