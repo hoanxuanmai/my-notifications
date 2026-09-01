@@ -4,7 +4,7 @@ import { wsService } from '@/lib/websocket';
 import { setApiAuthToken } from '@/lib/api';
 import { useNotificationsStore } from '@/stores/notifications-store';
 
-interface User {
+export interface User {
   id: string;
   email: string;
   username: string;
@@ -12,7 +12,7 @@ interface User {
   avatar?: string | null;
 }
 
-interface RegisterInput {
+export interface RegisterInput {
   username: string;
   email: string;
   password: string;
@@ -24,43 +24,21 @@ interface AuthState {
   token: string | null;
   loading: boolean;
   error: string | null;
+  initAuth: () => Promise<void>;
   login: (emailOrUsername: string, password: string) => Promise<void>;
   logout: () => void;
   register: (input: RegisterInput) => Promise<void>;
+  updateProfile: (data: Partial<User>) => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => {
-  let initialUser: User | null = null;
-  let initialToken: string | null = null;
+const DEFAULT_DEMO_USER: User = {
+  id: 'usr-main-ops',
+  email: 'hoanxuanmai@gmail.com',
+  username: 'hoanxuanmai',
+  name: 'Hoan Xuan Mai',
+};
 
-  // Restore session from localStorage on client load
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('auth_token');
-    const userRaw = localStorage.getItem('auth_user');
-    if (token) {
-      initialToken = token;
-      setApiAuthToken(token);
-    }
-    if (userRaw) {
-      try {
-        const parsed = JSON.parse(userRaw) as User;
-        initialUser = parsed;
-        wsService.subscribeUser(parsed.id);
-      } catch {
-        // ignore parse error
-      }
-    } else {
-      // Default demo user for seamless instant preview
-      initialUser = {
-        id: 'usr-main-ops',
-        email: 'hoanxuanmai@gmail.com',
-        username: 'hoanxuanmai',
-        name: 'Hoan Xuan Mai',
-      };
-      initialToken = 'sb-session-token-active';
-    }
-  }
-
+export const useAuthStore = create<AuthState>((set, get) => {
   const setAuth = (data: { access_token: string; user: User }) => {
     const { access_token, user } = data;
 
@@ -75,10 +53,50 @@ export const useAuthStore = create<AuthState>((set) => {
   };
 
   return {
-    user: initialUser,
-    token: initialToken,
+    user: DEFAULT_DEMO_USER,
+    token: 'sb-session-token-active',
     loading: false,
     error: null,
+
+    async initAuth() {
+      if (typeof window === 'undefined') return;
+
+      const token = localStorage.getItem('auth_token');
+      const userRaw = localStorage.getItem('auth_user');
+
+      if (token && userRaw) {
+        try {
+          const parsed = JSON.parse(userRaw) as User;
+          setAuth({ access_token: token, user: parsed });
+          return;
+        } catch {
+          // ignore parse error
+        }
+      }
+
+      // Check active Supabase session
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (data.session && data.session.user) {
+          const u = data.session.user;
+          const user: User = {
+            id: u.id,
+            email: u.email || 'user@example.com',
+            username: u.user_metadata?.username || u.email?.split('@')[0] || 'user',
+            name: u.user_metadata?.name || u.email?.split('@')[0] || 'User',
+          };
+          setAuth({ access_token: data.session.access_token, user });
+          return;
+        }
+      } catch (err) {
+        console.warn('Supabase getSession note:', err);
+      }
+
+      // If no session found in localStorage, keep default demo user for instant accessibility
+      if (!token) {
+        setAuth({ access_token: 'sb-session-token-active', user: DEFAULT_DEMO_USER });
+      }
+    },
 
     async login(emailOrUsername: string, password: string) {
       set({ loading: true, error: null });
@@ -157,6 +175,16 @@ export const useAuthStore = create<AuthState>((set) => {
           error: err?.message || 'Registration failed',
         });
         throw err;
+      }
+    },
+
+    updateProfile(data: Partial<User>) {
+      const current = get().user;
+      if (!current) return;
+      const updated = { ...current, ...data };
+      set({ user: updated });
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('auth_user', JSON.stringify(updated));
       }
     },
 
