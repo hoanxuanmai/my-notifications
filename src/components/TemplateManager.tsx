@@ -14,15 +14,15 @@ import {
   Layers,
 } from 'lucide-react';
 import { NotificationTemplate, NotificationCategory, NotificationChannel } from '../types';
-import { INITIAL_TEMPLATES } from '../data/mockData';
+import { notificationService } from '../services/notificationService';
 
 interface TemplateManagerProps {
   onUseTemplate?: (template: NotificationTemplate) => void;
 }
 
 export const TemplateManager: React.FC<TemplateManagerProps> = ({ onUseTemplate }) => {
-  const [templates, setTemplates] = useState<NotificationTemplate[]>(INITIAL_TEMPLATES);
-  const [selectedTemplate, setSelectedTemplate] = useState<NotificationTemplate | null>(templates[0]);
+  const [templates, setTemplates] = useState<NotificationTemplate[]>(notificationService.getTemplates());
+  const [selectedTemplate, setSelectedTemplate] = useState<NotificationTemplate | null>(notificationService.getTemplates()[0] || null);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('Welcome email and in-app alert for newly invited workspace member');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -31,6 +31,34 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({ onUseTemplate 
     navigator.clipboard.writeText(JSON.stringify(template, null, 2));
     setCopiedId(template.id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleCreateTemplate = async () => {
+    const newTpl: NotificationTemplate = {
+      id: `tpl-${Date.now()}`,
+      name: 'New Custom Template',
+      slug: `custom-event-${Date.now().toString().slice(-4)}`,
+      category: 'system',
+      defaultChannel: 'in_app',
+      titleTemplate: 'Alert: {{event_name}}',
+      bodyTemplate: 'Detailed summary for event {{event_name}} on {{environment}}.',
+      variables: ['event_name', 'environment'],
+      sampleVariables: { event_name: 'Database Backup', environment: 'Production' },
+      createdAt: new Date().toISOString(),
+    };
+    await notificationService.saveTemplate(newTpl);
+    setTemplates(notificationService.getTemplates());
+    setSelectedTemplate(newTpl);
+  };
+
+  const handleDeleteTemplate = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await notificationService.deleteTemplate(id);
+    const updated = notificationService.getTemplates();
+    setTemplates(updated);
+    if (selectedTemplate?.id === id) {
+      setSelectedTemplate(updated[0] || null);
+    }
   };
 
   const handleGenerateAiTemplate = async () => {
@@ -60,7 +88,8 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({ onUseTemplate 
           sampleVariables: data.template.sampleVariables || { event: 'Deploy', details: 'OK' },
           createdAt: new Date().toISOString(),
         };
-        setTemplates([newTpl, ...templates]);
+        await notificationService.saveTemplate(newTpl);
+        setTemplates(notificationService.getTemplates());
         setSelectedTemplate(newTpl);
       }
     } catch (err) {
@@ -93,22 +122,7 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({ onUseTemplate 
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                const newTpl: NotificationTemplate = {
-                  id: `tpl-${Date.now()}`,
-                  name: 'New Custom Template',
-                  slug: `custom-event-${Date.now().toString().slice(-4)}`,
-                  category: 'system',
-                  defaultChannel: 'in_app',
-                  titleTemplate: 'Alert: {{event_name}}',
-                  bodyTemplate: 'Detailed summary for event {{event_name}} on {{environment}}.',
-                  variables: ['event_name', 'environment'],
-                  sampleVariables: { event_name: 'Database Backup', environment: 'Production' },
-                  createdAt: new Date().toISOString(),
-                };
-                setTemplates([newTpl, ...templates]);
-                setSelectedTemplate(newTpl);
-              }}
+              onClick={handleCreateTemplate}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition active:scale-95 cursor-pointer"
             >
               <Plus className="h-4 w-4" />
@@ -171,9 +185,18 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({ onUseTemplate 
                 <h4 className="text-xs font-bold text-white flex items-center gap-2 truncate">
                   <span>{tpl.name}</span>
                 </h4>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-950 text-cyan-400 border border-slate-800">
-                  {tpl.defaultChannel || tpl.supportedChannels?.[0] || 'in_app'}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-950 text-cyan-400 border border-slate-800">
+                    {tpl.defaultChannel || tpl.supportedChannels?.[0] || 'in_app'}
+                  </span>
+                  <button
+                    onClick={(e) => handleDeleteTemplate(tpl.id, e)}
+                    className="p-1 text-slate-500 hover:text-rose-400 transition"
+                    title="Delete template"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
               </div>
               <p className="text-[11px] text-slate-400 line-clamp-2">
                 {tpl.bodyTemplate}

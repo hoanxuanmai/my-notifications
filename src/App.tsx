@@ -3,6 +3,8 @@ import { Navbar } from './components/Navbar';
 import { NotificationCenter } from './components/NotificationCenter';
 import { MigrationStudio } from './components/MigrationStudio';
 import { DispatcherLab } from './components/DispatcherLab';
+import { ChannelHubView } from './components/ChannelHubView';
+import { WebPushStudio } from './components/WebPushStudio';
 import { SchemaManager } from './components/SchemaManager';
 import { SupabaseCliStudio } from './components/SupabaseCliStudio';
 import { TemplateManager } from './components/TemplateManager';
@@ -12,7 +14,8 @@ import { ActiveTab, NotificationItem, DeliveryLog, NotificationTemplate } from '
 import { notificationService } from './services/notificationService';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('migration');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('channels');
+  const [selectedChannelForDispatcher, setSelectedChannelForDispatcher] = useState<string | undefined>(undefined);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [deliveryLogs, setDeliveryLogs] = useState<DeliveryLog[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
@@ -52,6 +55,8 @@ export default function App() {
       message: 'A realtime push event was delivered successfully replacing the NestJS WebSocket Gateway.',
       type: 'system',
       channel: 'in_app',
+      channelId: 'ch-engineering',
+      channelName: 'Engineering & DevOps',
       priority: 'high',
       senderName: 'Supabase Realtime Hub',
       senderRole: 'Event Gateway',
@@ -85,6 +90,26 @@ export default function App() {
             unreadCount={unreadCount}
             onNavigateToDispatcher={() => setActiveTab('dispatcher')}
             onNavigateToMigration={() => setActiveTab('migration')}
+            onNavigateToChannels={() => setActiveTab('channels')}
+          />
+        )}
+
+        {activeTab === 'channels' && (
+          <ChannelHubView
+            notifications={notifications}
+            onNavigateToDispatcher={(channelId) => {
+              setSelectedChannelForDispatcher(channelId);
+              setActiveTab('dispatcher');
+            }}
+          />
+        )}
+
+        {activeTab === 'webpush' && (
+          <WebPushStudio
+            onDispatched={() => {
+              setNotifications(notificationService.getNotifications());
+              setDeliveryLogs(notificationService.getDeliveryLogs());
+            }}
           />
         )}
 
@@ -93,6 +118,7 @@ export default function App() {
         {activeTab === 'dispatcher' && (
           <DispatcherLab
             deliveryLogs={deliveryLogs}
+            initialChannelId={selectedChannelForDispatcher}
             onDispatched={() => {
               setNotifications(notificationService.getNotifications());
               setDeliveryLogs(notificationService.getDeliveryLogs());

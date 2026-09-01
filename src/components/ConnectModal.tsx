@@ -21,12 +21,23 @@ interface ConnectModalProps {
 
 export const ConnectModal: React.FC<ConnectModalProps> = ({ isOpen, onClose, onConnected }) => {
   const currentConfig = notificationService.getSupabaseConfig();
-  const [supabaseUrl, setSupabaseUrl] = useState(currentConfig?.url || '');
-  const [supabaseAnonKey, setSupabaseAnonKey] = useState(currentConfig?.anonKey || '');
+  const envUrl = import.meta.env.VITE_SUPABASE_URL || '';
+  const envAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+  const [supabaseUrl, setSupabaseUrl] = useState(currentConfig?.url || envUrl || '');
+  const [supabaseAnonKey, setSupabaseAnonKey] = useState(currentConfig?.anonKey || envAnonKey || '');
   const [isTesting, setIsTesting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ success: boolean; text: string } | null>(null);
 
   if (!isOpen) return null;
+
+  const handleUseEnv = () => {
+    if (envUrl && envAnonKey) {
+      setSupabaseUrl(envUrl);
+      setSupabaseAnonKey(envAnonKey);
+      setStatusMessage({ success: true, text: 'Loaded credentials from environment variables (.env / VITE_SUPABASE_*)' });
+    }
+  };
 
   const handleSaveAndTest = async () => {
     if (!supabaseUrl.trim() || !supabaseAnonKey.trim()) {

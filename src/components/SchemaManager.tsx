@@ -22,18 +22,47 @@ export const SchemaManager: React.FC = () => {
   const [auditResult, setAuditResult] = useState<any>(null);
 
   const COMPLETE_SUPABASE_SQL = `-- ==============================================================================
--- MY-NOTIFICATIONS SUPABASE MIGRATION SCRIPT
+-- MY-NOTIFICATIONS SUPABASE MIGRATION SCRIPT (WITH CHANNELS & MEMBERS)
 -- Replaces NestJS Prisma Schema, Repository, Kafka Consumer, and WebSocket Gateway
 -- ==============================================================================
 
 -- 1. Enable UUID Extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 2. Create Notifications Table (Domain Model)
+-- 2. Create Channels Table (Channel Isolation & Workspaces)
+CREATE TABLE IF NOT EXISTS public.channels (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(100) NOT NULL UNIQUE,
+  description TEXT,
+  icon VARCHAR(50) DEFAULT 'hash',
+  type VARCHAR(30) NOT NULL DEFAULT 'public' 
+    CHECK (type IN ('public', 'private', 'direct', 'announcement')),
+  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  is_archived BOOLEAN NOT NULL DEFAULT false,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- 3. Create Channel Members Table (Membership & Role-based Access)
+CREATE TABLE IF NOT EXISTS public.channel_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  channel_id UUID NOT NULL REFERENCES public.channels(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  role VARCHAR(30) NOT NULL DEFAULT 'member' 
+    CHECK (role IN ('owner', 'admin', 'member', 'viewer')),
+  notification_enabled BOOLEAN NOT NULL DEFAULT true,
+  muted_until TIMESTAMPTZ,
+  joined_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT unique_channel_user UNIQUE (channel_id, user_id)
+);
+
+-- 4. Create Notifications Table (Domain Model with Channel Support)
 CREATE TABLE IF NOT EXISTS public.notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  recipient_id VARCHAR(255) NOT NULL, -- Compatible with hoanxuanmai/my-notifications RecipientId value object
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  channel_id UUID REFERENCES public.channels(id) ON DELETE CASCADE,
+  recipient_id VARCHAR(255),          -- Compatible with hoanxuanmai/my-notifications RecipientId
   title VARCHAR(255) NOT NULL,
   content TEXT NOT NULL,              -- Domain 'content' field
   message TEXT,                       -- Display message preview
@@ -44,6 +73,7 @@ CREATE TABLE IF NOT EXISTS public.notifications (
     CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
   payload JSONB NOT NULL DEFAULT '{}'::jsonb,
   is_read BOOLEAN NOT NULL DEFAULT false,
+  read BOOLEAN NOT NULL DEFAULT false,
   read_at TIMESTAMPTZ,
   canceled_at TIMESTAMPTZ,           -- Direct replacement for CancelNotification use case
   is_archived BOOLEAN NOT NULL DEFAULT false,
@@ -55,7 +85,7 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- 3. Create Delivery Logs Table (Multi-channel telemetry)
+-- 5. Create Delivery Logs Table (Multi-channel telemetry)
 CREATE TABLE IF NOT EXISTS public.delivery_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   notification_id UUID NOT NULL REFERENCES public.notifications(id) ON DELETE CASCADE,
@@ -71,7 +101,23 @@ CREATE TABLE IF NOT EXISTS public.delivery_logs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- 4. Create Notification Preferences Table
+-- 6. Create Push Subscriptions Table (Web Push Protocol RFC 8291 / RFC 8292)
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh VARCHAR(255) NOT NULL,
+  auth_token VARCHAR(255) NOT NULL,
+  device_name VARCHAR(100) DEFAULT 'Web Browser',
+  browser_name VARCHAR(50),
+  os_name VARCHAR(50),
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  last_used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- 7. Create Notification Preferences Table
 CREATE TABLE IF NOT EXISTS public.notification_preferences (
   user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email_enabled BOOLEAN DEFAULT true,
@@ -86,150 +132,129 @@ CREATE TABLE IF NOT EXISTS public.notification_preferences (
 );
 
 -- ==============================================================================
--- 5. PERFORMANCE INDEXES (Optimized for Sub-millisecond Queries)
+-- 8. PERFORMANCE INDEXES
 -- ==============================================================================
--- Partial index for active unread notifications
+CREATE INDEX IF NOT EXISTS idx_notifications_channel ON public.notifications (channel_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_channel_members_user ON public.channel_members (user_id);
+CREATE INDEX IF NOT EXISTS idx_channel_members_channel ON public.channel_members (channel_id);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON public.push_subscriptions (user_id) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_notifications_recipient_unread 
   ON public.notifications (recipient_id, created_at DESC) 
   WHERE is_read = false AND canceled_at IS NULL;
 
--- Chronological user timeline index
-CREATE INDEX IF NOT EXISTS idx_notifications_recipient_history 
-  ON public.notifications (recipient_id, created_at DESC);
-
--- User auth UUID index for RLS evaluation
-CREATE INDEX IF NOT EXISTS idx_notifications_user_auth 
-  ON public.notifications (user_id);
-
--- Delivery logs index
-CREATE INDEX IF NOT EXISTS idx_delivery_logs_notif_id 
-  ON public.delivery_logs (notification_id);
-
 -- ==============================================================================
--- 6. ROW LEVEL SECURITY (RLS) POLICIES
+-- 9. ROW LEVEL SECURITY (RLS) POLICIES
 -- ==============================================================================
+ALTER TABLE public.channels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.channel_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.delivery_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notification_preferences ENABLE ROW LEVEL SECURITY;
 
--- Notifications Policies
-CREATE POLICY "Users can only read their own notifications"
-  ON public.notifications FOR SELECT
-  USING (auth.uid() = user_id OR auth.uid()::text = recipient_id);
+-- Push Subscriptions Policies
+CREATE POLICY "Users can manage their own push subscriptions"
+  ON public.push_subscriptions FOR ALL TO authenticated
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
 
-CREATE POLICY "Users can update their own notification statuses"
-  ON public.notifications FOR UPDATE
-  USING (auth.uid() = user_id OR auth.uid()::text = recipient_id)
-  WITH CHECK (auth.uid() = user_id OR auth.uid()::text = recipient_id);
+-- Channel Policies
+CREATE POLICY "Public channels readable by authenticated users"
+  ON public.channels FOR SELECT TO authenticated
+  USING (type = 'public' OR EXISTS (
+    SELECT 1 FROM public.channel_members cm
+    WHERE cm.channel_id = channels.id AND cm.user_id = auth.uid()
+  ));
 
-CREATE POLICY "Service Role or System can insert notifications"
-  ON public.notifications FOR INSERT
-  WITH CHECK (true); -- Usually called via Edge Function or Service Role Key
+-- Channel Members Policies
+CREATE POLICY "Users can view members of channels they belong to"
+  ON public.channel_members FOR SELECT TO authenticated
+  USING (user_id = auth.uid() OR EXISTS (
+    SELECT 1 FROM public.channel_members cm2
+    WHERE cm2.channel_id = channel_members.channel_id AND cm2.user_id = auth.uid()
+  ));
 
--- Delivery Logs Policy
-CREATE POLICY "Users can view delivery logs of their notifications"
-  ON public.delivery_logs FOR SELECT
+-- Notification Policies
+CREATE POLICY "Users can read channel or personal notifications"
+  ON public.notifications FOR SELECT TO authenticated
   USING (
-    EXISTS (
-      SELECT 1 FROM public.notifications n
-      WHERE n.id = delivery_logs.notification_id
-        AND (n.user_id = auth.uid() OR n.recipient_id = auth.uid()::text)
-    )
+    user_id = auth.uid() 
+    OR recipient_id = auth.uid()::text
+    OR (channel_id IS NOT NULL AND EXISTS (
+      SELECT 1 FROM public.channel_members cm
+      WHERE cm.channel_id = notifications.channel_id AND cm.user_id = auth.uid()
+    ))
   );
 
--- Preferences Policy
-CREATE POLICY "Users can view and update own preferences"
-  ON public.notification_preferences FOR ALL
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-
 -- ==============================================================================
--- 7. STORED PROCEDURES / RPC FUNCTIONS (Replacing NestJS Use-Cases)
+-- 9. STORED PROCEDURES / RPC FUNCTIONS
 -- ==============================================================================
 
--- Replacement for ReadNotification Use Case
-CREATE OR REPLACE FUNCTION public.read_notification(p_id UUID)
-RETURNS public.notifications AS $$
+-- Create Channel RPC
+CREATE OR REPLACE FUNCTION public.create_channel(
+  p_name VARCHAR(100),
+  p_description TEXT DEFAULT NULL,
+  p_type VARCHAR(30) DEFAULT 'public',
+  p_icon VARCHAR(50) DEFAULT 'hash',
+  p_metadata JSONB DEFAULT '{}'::jsonb
+)
+RETURNS JSONB AS $$
 DECLARE
-  result public.notifications;
+  v_channel_id UUID;
+  v_result JSONB;
 BEGIN
-  UPDATE public.notifications
-  SET is_read = true,
-      read_at = timezone('utc'::text, now()),
-      updated_at = timezone('utc'::text, now())
-  WHERE id = p_id
-    AND (user_id = auth.uid() OR recipient_id = auth.uid()::text)
-  RETURNING * INTO result;
+  INSERT INTO public.channels (name, description, type, icon, created_by, metadata)
+  VALUES (p_name, p_description, p_type, p_icon, auth.uid(), p_metadata)
+  RETURNING id INTO v_channel_id;
 
-  RETURN result;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Replacement for UnreadNotification Use Case
-CREATE OR REPLACE FUNCTION public.unread_notification(p_id UUID)
-RETURNS public.notifications AS $$
-DECLARE
-  result public.notifications;
-BEGIN
-  UPDATE public.notifications
-  SET is_read = false,
-      read_at = NULL,
-      updated_at = timezone('utc'::text, now())
-  WHERE id = p_id
-    AND (user_id = auth.uid() OR recipient_id = auth.uid()::text)
-  RETURNING * INTO result;
-
-  RETURN result;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Replacement for CancelNotification Use Case
-CREATE OR REPLACE FUNCTION public.cancel_notification(p_id UUID)
-RETURNS public.notifications AS $$
-DECLARE
-  result public.notifications;
-BEGIN
-  UPDATE public.notifications
-  SET canceled_at = timezone('utc'::text, now()),
-      is_archived = true,
-      updated_at = timezone('utc'::text, now())
-  WHERE id = p_id
-    AND (user_id = auth.uid() OR recipient_id = auth.uid()::text)
-  RETURNING * INTO result;
-
-  RETURN result;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Replacement for CountRecipientNotifications Use Case
-CREATE OR REPLACE FUNCTION public.count_recipient_notifications(p_recipient_id VARCHAR, p_unread_only BOOLEAN DEFAULT true)
-RETURNS INT AS $$
-DECLARE
-  total INT;
-BEGIN
-  IF p_unread_only THEN
-    SELECT COUNT(*) INTO total
-    FROM public.notifications
-    WHERE recipient_id = p_recipient_id
-      AND is_read = false
-      AND canceled_at IS NULL;
-  ELSE
-    SELECT COUNT(*) INTO total
-    FROM public.notifications
-    WHERE recipient_id = p_recipient_id
-      AND canceled_at IS NULL;
+  IF auth.uid() IS NOT NULL THEN
+    INSERT INTO public.channel_members (channel_id, user_id, role)
+    VALUES (v_channel_id, auth.uid(), 'owner');
   END IF;
 
-  RETURN total;
+  SELECT row_to_json(c)::jsonb INTO v_result FROM public.channels c WHERE c.id = v_channel_id;
+  RETURN v_result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Send Channel Notification RPC
+CREATE OR REPLACE FUNCTION public.send_channel_notification(
+  p_channel_id UUID,
+  p_title VARCHAR(255),
+  p_content TEXT,
+  p_message TEXT DEFAULT NULL,
+  p_category VARCHAR(50) DEFAULT 'system',
+  p_channel_type VARCHAR(30) DEFAULT 'in_app',
+  p_priority VARCHAR(20) DEFAULT 'normal',
+  p_payload JSONB DEFAULT '{}'::jsonb,
+  p_action_url TEXT DEFAULT NULL,
+  p_action_label VARCHAR(100) DEFAULT NULL,
+  p_sender JSONB DEFAULT '{"name":"System","role":"Engine"}'::jsonb
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_notif_id UUID;
+  v_result JSONB;
+BEGIN
+  INSERT INTO public.notifications (
+    channel_id, title, content, message, category, channel, priority,
+    payload, action_url, action_label, sender, is_read, read
+  ) VALUES (
+    p_channel_id, p_title, p_content, COALESCE(p_message, p_content), p_category,
+    p_channel_type, p_priority, p_payload, p_action_url, p_action_label, p_sender, false, false
+  ) RETURNING id INTO v_notif_id;
+
+  SELECT row_to_json(n)::jsonb INTO v_result FROM public.notifications n WHERE n.id = v_notif_id;
+  RETURN v_result;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ==============================================================================
--- 8. SUPABASE REALTIME PUBLICATION SETUP
+-- 10. REALTIME REPLICATION
 -- ==============================================================================
--- Enable Realtime events for client WebSocket listeners
 ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
-ALTER TABLE public.notifications REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.channels;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.channel_members;
 `;
 
   const handleCopy = () => {

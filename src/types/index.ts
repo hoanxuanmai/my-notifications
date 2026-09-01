@@ -6,9 +6,39 @@ export type NotificationCategory = 'system' | 'security' | 'billing' | 'social' 
 
 export type DeliveryStatus = 'queued' | 'dispatched' | 'delivered' | 'read' | 'failed' | 'retried';
 
+export interface AppChannel {
+  id: string;
+  userId: string;
+  name: string;
+  description?: string;
+  webhookToken: string;
+  apiKey?: string;
+  settings?: Record<string, any>;
+  isActive: boolean;
+  members?: ChannelMember[];
+  _count?: {
+    notifications: number;
+  };
+  notifications?: NotificationItem[];
+  createdAt: string;
+  updatedAt: string;
+  expiresAt?: string;
+}
+
+export interface ChannelMember {
+  id: string;
+  channelId: string;
+  userId: string;
+  email?: string;
+  role: 'owner' | 'admin' | 'member';
+  createdAt?: string;
+}
+
 export interface NotificationItem {
   id: string;
   userId: string;
+  channelId?: string | null;
+  channelName?: string;
   title: string;
   message: string;
   type: NotificationCategory;
@@ -121,4 +151,51 @@ export interface NestJSMigrationItem {
   };
 }
 
-export type ActiveTab = 'inbox' | 'migration' | 'dispatcher' | 'schemas' | 'cli' | 'templates' | 'preferences';
+export interface PushSubscriptionData {
+  id: string;
+  userId: string;
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+  deviceName?: string;
+  browserName?: string;
+  osName?: string;
+  isActive: boolean;
+  createdAt: string;
+  lastUsedAt?: string;
+}
+
+export interface VapidKeys {
+  publicKey: string;
+  privateKey: string;
+  subject: string;
+}
+
+export interface WebPushPayload {
+  title: string;
+  body: string;
+  icon?: string;
+  badge?: string;
+  image?: string;
+  tag?: string;
+  data?: {
+    url?: string;
+    notificationId?: string;
+    channelId?: string;
+    priority?: string;
+    [key: string]: any;
+  };
+  actions?: Array<{
+    action: string;
+    title: string;
+    icon?: string;
+  }>;
+  vibrate?: number[];
+  requireInteraction?: boolean;
+  silent?: boolean;
+  timestamp?: number;
+}
+
+export type ActiveTab = 'inbox' | 'channels' | 'webpush' | 'migration' | 'dispatcher' | 'schemas' | 'cli' | 'templates' | 'preferences';

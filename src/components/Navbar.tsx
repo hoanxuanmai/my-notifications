@@ -14,6 +14,7 @@ import {
   Settings,
   HelpCircle,
   Terminal,
+  Hash,
 } from 'lucide-react';
 import { ActiveTab, SupabaseConfig } from '../types';
 
@@ -82,6 +83,33 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {unreadCount}
                 </span>
               )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('channels')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'channels'
+                  ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 font-semibold'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Hash className="h-4 w-4 text-indigo-400" />
+              <span>Channels</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('webpush')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'webpush'
+                  ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 font-semibold'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Radio className="h-4 w-4 text-indigo-400" />
+              <span>Web Push</span>
+              <span className="px-1.5 py-0.2 text-[10px] font-bold rounded bg-indigo-500/20 text-indigo-300">
+                RFC 8292
+              </span>
             </button>
 
             <button
@@ -211,6 +239,22 @@ export const Navbar: React.FC<NavbarProps> = ({
             }`}
           >
             Inbox ({unreadCount})
+          </button>
+          <button
+            onClick={() => setActiveTab('channels')}
+            className={`px-3 py-1.5 rounded font-medium whitespace-nowrap ${
+              activeTab === 'channels' ? 'bg-indigo-500/20 text-indigo-400 font-semibold' : 'text-slate-400'
+            }`}
+          >
+            Channels
+          </button>
+          <button
+            onClick={() => setActiveTab('webpush')}
+            className={`px-3 py-1.5 rounded font-medium whitespace-nowrap ${
+              activeTab === 'webpush' ? 'bg-indigo-500/20 text-indigo-400 font-semibold' : 'text-slate-400'
+            }`}
+          >
+            Web Push
           </button>
           <button
             onClick={() => setActiveTab('migration')}

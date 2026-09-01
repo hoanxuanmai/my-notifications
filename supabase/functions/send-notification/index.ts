@@ -56,12 +56,23 @@ serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Parse request body
-    const body: SendNotificationPayload = await req.json();
+    // Extract params from URL (Path parameter or Query string)
+    const reqUrl = new URL(req.url);
+    const pathParts = reqUrl.pathname.split("/").filter(Boolean);
+    // e.g. /functions/v1/send-notification/webhook_token_xxx or /functions/v1/send-notification
+    const lastPathSegment = pathParts[pathParts.length - 1];
+    const pathToken = lastPathSegment && lastPathSegment !== "send-notification" && lastPathSegment !== "v1" ? lastPathSegment : null;
 
-    const title = body.title;
-    const message = body.message || body.content || "";
-    const content = body.content || body.message || "";
+    const queryToken = reqUrl.searchParams.get("token") || reqUrl.searchParams.get("webhookToken") || reqUrl.searchParams.get("webhook_token");
+    const queryChannelId = reqUrl.searchParams.get("channel_id") || reqUrl.searchParams.get("channelId") || reqUrl.searchParams.get("id");
+    const headerToken = req.headers.get("x-channel-token") || req.headers.get("x-webhook-token") || req.headers.get("x-token");
+
+    // Parse request body
+    const body: SendNotificationPayload = await req.json().catch(() => ({ title: "Webhook Alert", message: "Incoming webhook trigger" }));
+
+    const title = body.title || "Webhook Alert";
+    const message = body.message || body.content || "Notification received via webhook";
+    const content = body.content || body.message || message;
 
     if (!title || !message) {
       return new Response(
@@ -70,8 +81,8 @@ serve(async (req: Request) => {
       );
     }
 
-    let targetChannelId = body.channelId || body.channel_id || null;
-    const webhookToken = body.webhookToken || body.webhook_token || null;
+    let targetChannelId = body.channelId || body.channel_id || queryChannelId || null;
+    const webhookToken = body.webhookToken || body.webhook_token || queryToken || pathToken || headerToken || null;
     let targetUserId = body.userId || body.user_id || null;
     const targetRecipientId = body.recipientId || body.recipient_id || targetUserId || (targetChannelId ? `channel:${targetChannelId}` : 'broadcast');
 

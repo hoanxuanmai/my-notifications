@@ -25,8 +25,10 @@ import {
   Radio,
   Layers,
   Send,
+  Hash,
+  Users,
 } from 'lucide-react';
-import { NotificationItem, NotificationCategory, NotificationPriority, NotificationChannel } from '../types';
+import { NotificationItem, NotificationCategory, NotificationPriority, NotificationChannel, AppChannel } from '../types';
 import { notificationService } from '../services/notificationService';
 
 interface NotificationCenterProps {
@@ -34,6 +36,7 @@ interface NotificationCenterProps {
   unreadCount: number;
   onNavigateToDispatcher: () => void;
   onNavigateToMigration: () => void;
+  onNavigateToChannels?: () => void;
 }
 
 type ViewFilter = 'all' | 'unread' | 'urgent' | 'pinned' | 'archived';
@@ -43,7 +46,10 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   unreadCount,
   onNavigateToDispatcher,
   onNavigateToMigration,
+  onNavigateToChannels,
 }) => {
+  const [channels] = useState<AppChannel[]>(notificationService.getChannels());
+  const [selectedChannelFilter, setSelectedChannelFilter] = useState<string>('all');
   const [viewFilter, setViewFilter] = useState<ViewFilter>('all');
   const [selectedCategory, setSelectedCategory] = useState<NotificationCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -53,6 +59,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   // Filter logic
   const filteredNotifications = useMemo(() => {
     return notifications.filter((item) => {
+      // Channel filter
+      if (selectedChannelFilter !== 'all' && item.channelId !== selectedChannelFilter) return false;
+
       // View filter
       if (viewFilter === 'unread' && item.isRead) return false;
       if (viewFilter === 'urgent' && item.priority !== 'urgent') return false;
@@ -69,12 +78,13 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         const matchesTitle = item.title.toLowerCase().includes(q);
         const matchesMsg = item.message.toLowerCase().includes(q);
         const matchesSender = item.sender?.name.toLowerCase().includes(q);
-        if (!matchesTitle && !matchesMsg && !matchesSender) return false;
+        const matchesChannel = item.channelName?.toLowerCase().includes(q);
+        if (!matchesTitle && !matchesMsg && !matchesSender && !matchesChannel) return false;
       }
 
       return true;
     });
-  }, [notifications, viewFilter, selectedCategory, searchQuery]);
+  }, [notifications, selectedChannelFilter, viewFilter, selectedCategory, searchQuery]);
 
   // Grouped by Category
   const groupedNotifications = useMemo(() => {
@@ -171,6 +181,15 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
           </div>
 
           <div className="flex items-center gap-2.5 flex-wrap">
+            {onNavigateToChannels && (
+              <button
+                onClick={onNavigateToChannels}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition"
+              >
+                <Hash className="h-3.5 w-3.5 text-indigo-400" />
+                Channels Hub
+              </button>
+            )}
             <button
               onClick={onNavigateToDispatcher}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition shadow-lg shadow-emerald-500/10 active:scale-95"
@@ -298,44 +317,85 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
           </div>
         </div>
 
-        {/* Filter Chips & Search Bar */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-3 pt-4 pb-2">
-          
-          {/* Search Input */}
-          <div className="relative w-full md:w-72">
-            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search notifications, senders..."
-              className="w-full pl-9 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/50"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white text-xs"
-              >
-                ✕
-              </button>
-            )}
+        {/* Channel Filter & Category Chips */}
+        <div className="pt-4 pb-1 space-y-3">
+          {/* Channel selector row */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+            <span className="text-slate-400 font-semibold flex items-center gap-1 shrink-0">
+              <Hash className="h-3.5 w-3.5 text-indigo-400" />
+              Channel:
+            </span>
+            <button
+              onClick={() => setSelectedChannelFilter('all')}
+              className={`px-3 py-1 rounded-lg font-medium whitespace-nowrap transition ${
+                selectedChannelFilter === 'all'
+                  ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                  : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+              }`}
+            >
+              All Channels ({notifications.filter((n) => !n.isArchived).length})
+            </button>
+            {channels.map((ch) => {
+              const count = notifications.filter((n) => n.channelId === ch.id && !n.isArchived).length;
+              return (
+                <button
+                  key={ch.id}
+                  onClick={() => setSelectedChannelFilter(ch.id)}
+                  className={`px-3 py-1 rounded-lg font-medium whitespace-nowrap transition flex items-center gap-1.5 ${
+                    selectedChannelFilter === ch.id
+                      ? 'bg-indigo-600/30 text-indigo-300 font-semibold border border-indigo-500/50'
+                      : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                  }`}
+                >
+                  <Hash className="h-3 w-3 text-indigo-400" />
+                  <span>{ch.name}</span>
+                  <span className="text-[10px] px-1 py-0.2 rounded bg-slate-800 text-slate-400">
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          {/* Category Chips */}
-          <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto text-xs pb-1 md:pb-0">
-            {(['all', 'security', 'billing', 'tasks', 'social', 'system', 'updates'] as const).map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-2.5 py-1 rounded-lg capitalize whitespace-nowrap transition ${
-                  selectedCategory === cat
-                    ? 'bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/40'
-                    : 'bg-slate-950 text-slate-400 hover:text-slate-300 border border-slate-800'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
+          {/* Filter Chips & Search Bar */}
+          <div className="flex flex-col md:flex-row items-center justify-between gap-3 pt-2">
+            
+            {/* Search Input */}
+            <div className="relative w-full md:w-72">
+              <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search notifications, channels, senders..."
+                className="w-full pl-9 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/50"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white text-xs"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Category Chips */}
+            <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto text-xs pb-1 md:pb-0">
+              {(['all', 'security', 'billing', 'tasks', 'social', 'system', 'updates'] as const).map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-2.5 py-1 rounded-lg capitalize whitespace-nowrap transition ${
+                    selectedCategory === cat
+                      ? 'bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/40'
+                      : 'bg-slate-950 text-slate-400 hover:text-slate-300 border border-slate-800'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -482,6 +542,13 @@ const NotificationCard: React.FC<NotificationCardProps> = ({
               <span className="text-[11px] font-mono text-slate-500 px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">
                 via {item.channel.toUpperCase()}
               </span>
+
+              {item.channelName && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  <Hash className="h-2.5 w-2.5 text-indigo-400" />
+                  <span>{item.channelName}</span>
+                </span>
+              )}
 
               {item.isPinned && (
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-500/20 text-amber-300">

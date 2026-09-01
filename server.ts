@@ -265,7 +265,7 @@ app.post("/api/dispatch-test", async (req, res) => {
       deliveredAt: new Date().toISOString(),
       receiptId: "del_" + Math.random().toString(36).substring(2, 10),
       channelDetails: {
-        provider: channel === "email" ? "Resend / Supabase Auth" : channel === "push" ? "Web Push / FCM" : "Supabase Realtime Channel",
+        provider: channel === "email" ? "Resend / Supabase Auth" : channel === "push" ? "Web Push Protocol (RFC 8292 / VAPID)" : "Supabase Realtime Channel",
         retryCount: 0,
       },
     });
@@ -277,6 +277,427 @@ app.post("/api/dispatch-test", async (req, res) => {
     });
   }
 });
+
+// ==============================================================================
+// WEBPUSH API ENDPOINTS (Compatible with NestJS WebPushModule & Supabase Edge Functions)
+// ==============================================================================
+
+// In-memory subscription storage for backend testing
+const serverSubscriptions: Array<{
+  id: string;
+  userId: string;
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+  deviceName?: string;
+  browserName?: string;
+  osName?: string;
+  createdAt: string;
+}> = [];
+
+let serverVapidKeys = {
+  publicKey: "BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U",
+  privateKey: "SAMPLE_VAPID_PRIVATE_KEY_FOR_EDGE_FUNCTION_SIGNING",
+  subject: "mailto:hoanxuanmai@gmail.com",
+};
+
+// GET VAPID Public Key (Same as NestJS WebPushController @Get('vapid-public-key'))
+app.get("/api/webpush/vapid-keys", (_req, res) => {
+  res.json({
+    publicKey: serverVapidKeys.publicKey,
+    subject: serverVapidKeys.subject,
+  });
+});
+
+// Generate new VAPID keys
+app.post("/api/webpush/generate-vapid", (_req, res) => {
+  const randomChars = (len: number) => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    let str = "";
+    for (let i = 0; i < len; i++) {
+      str += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return str;
+  };
+
+  serverVapidKeys = {
+    publicKey: `B${randomChars(86)}`,
+    privateKey: randomChars(43),
+    subject: "mailto:hoanxuanmai@gmail.com",
+  };
+
+  res.json({
+    success: true,
+    ...serverVapidKeys,
+  });
+});
+
+// Subscribe a Browser Push Endpoint (Same as NestJS WebPushController @Post('subscribe'))
+app.post("/api/webpush/subscribe", (req, res) => {
+  const { userId, subscription, deviceName, browserName, osName } = req.body;
+  if (!subscription || !subscription.endpoint) {
+    return res.status(400).json({ error: "Invalid subscription payload" });
+  }
+
+  const existingIdx = serverSubscriptions.findIndex((s) => s.endpoint === subscription.endpoint);
+  const subRecord = {
+    id: "sub-" + Math.random().toString(36).substring(2, 9),
+    userId: userId || "hoanxuanmai",
+    endpoint: subscription.endpoint,
+    keys: subscription.keys || { p256dh: "", auth: "" },
+    deviceName: deviceName || "Web Browser Device",
+    browserName: browserName || "Browser",
+    osName: osName || "Desktop OS",
+    createdAt: new Date().toISOString(),
+  };
+
+  if (existingIdx >= 0) {
+    serverSubscriptions[existingIdx] = subRecord;
+  } else {
+    serverSubscriptions.push(subRecord);
+  }
+
+  res.status(201).json({
+    success: true,
+    message: "Push subscription registered successfully",
+    subscriptionId: subRecord.id,
+  });
+});
+
+// Unsubscribe
+app.delete("/api/webpush/unsubscribe", (req, res) => {
+  const { endpoint } = req.body;
+  const idx = serverSubscriptions.findIndex((s) => s.endpoint === endpoint);
+  if (idx >= 0) {
+    serverSubscriptions.splice(idx, 1);
+  }
+  res.json({ success: true, message: "Subscription removed" });
+});
+
+// List Subscriptions for User
+app.get("/api/webpush/subscriptions", (req, res) => {
+  const userId = (req.query.userId as string) || "hoanxuanmai";
+  const userSubs = serverSubscriptions.filter((s) => s.userId === userId);
+  res.json({
+    subscriptions: userSubs,
+    total: userSubs.length,
+  });
+});
+
+// In-memory channels storage for fallback mode
+const serverChannels = [
+  {
+    id: "a0000000-0000-0000-0000-000000000001",
+    name: "General Alerts",
+    description: "Primary notification channel for general announcements and application updates",
+    webhookToken: "webhook_token_general_01",
+    settings: { template: "default" },
+    isActive: true,
+    members: [],
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: "a0000000-0000-0000-0000-000000000002",
+    name: "Engineering & DevOps",
+    description: "CI/CD pipeline alerts, Kafka broker events, and Supabase database migrations",
+    webhookToken: "webhook_token_devops_02",
+    settings: { template: "slack" },
+    isActive: true,
+    members: [],
+    createdAt: new Date().toISOString(),
+  },
+];
+
+// In-memory notifications storage for fallback mode
+const serverNotifications: any[] = [];
+const serverDeliveryLogs: any[] = [];
+
+// ==============================================================================
+// NOTIFICATION & CHANNEL REST API (Compatible with NestJS & Supabase)
+// ==============================================================================
+
+// GET /api/channels - List Channels
+app.get("/api/channels", (_req, res) => {
+  res.json({
+    success: true,
+    channels: serverChannels,
+    total: serverChannels.length,
+  });
+});
+
+// POST /api/channels - Create Channel
+app.post("/api/channels", (req, res) => {
+  const { name, description, settings } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: "Channel name is required" });
+  }
+
+  const newChannel = {
+    id: "ch_" + Math.random().toString(36).substring(2, 10),
+    name,
+    description: description || "",
+    webhookToken: "wh_" + Math.random().toString(36).substring(2, 14),
+    settings: settings || {},
+    isActive: true,
+    members: [],
+    createdAt: new Date().toISOString(),
+  };
+
+  serverChannels.unshift(newChannel);
+  res.status(201).json({ success: true, channel: newChannel });
+});
+
+// POST /api/channels/:id/members - Add Channel Member
+app.post("/api/channels/:id/members", (req, res) => {
+  const { id } = req.params;
+  const { email, role } = req.body;
+
+  const ch = serverChannels.find((c) => c.id === id);
+  if (!ch) {
+    return res.status(404).json({ error: "Channel not found" });
+  }
+
+  const member = {
+    id: "mem_" + Math.random().toString(36).substring(2, 8),
+    channelId: id,
+    email: email || "member@example.com",
+    role: role || "member",
+    createdAt: new Date().toISOString(),
+  };
+
+  ch.members.push(member as any);
+  res.status(201).json({ success: true, member });
+});
+
+// POST /api/notifications/send - Send Notification
+app.post("/api/notifications/send", (req, res) => {
+  const { title, message, content, channel, priority, type, channelId, webhookToken, recipientId, userId, payload, metadata } = req.body;
+  const notifTitle = title || "System Notification";
+  const notifMessage = message || content || "";
+
+  if (!notifTitle || !notifMessage) {
+    return res.status(400).json({ error: "Title and message/content are required" });
+  }
+
+  const newNotif = {
+    id: "notif_" + Math.random().toString(36).substring(2, 10),
+    userId: userId || "hoanxuanmai",
+    recipientId: recipientId || userId || (channelId ? `channel:${channelId}` : "broadcast"),
+    channelId: channelId || null,
+    title: notifTitle,
+    message: notifMessage,
+    content: notifMessage,
+    type: type || "info",
+    channel: channel || "in_app",
+    priority: priority || "normal",
+    payload: payload || metadata || {},
+    isRead: false,
+    read: false,
+    isArchived: false,
+    isPinned: false,
+    createdAt: new Date().toISOString(),
+  };
+
+  serverNotifications.unshift(newNotif);
+
+  // Add delivery log
+  const log = {
+    id: "log_" + Math.random().toString(36).substring(2, 9),
+    notificationId: newNotif.id,
+    channel: newNotif.channel,
+    status: "delivered",
+    latencyMs: Math.floor(Math.random() * 20) + 5,
+    deliveredAt: new Date().toISOString(),
+    provider: "local_dispatcher",
+  };
+  serverDeliveryLogs.unshift(log);
+
+  res.status(201).json({
+    success: true,
+    notification: newNotif,
+    deliveryLog: log,
+  });
+});
+
+// ==============================================================================
+// WEBHOOK PATH ENDPOINTS (Webhook Token & Channel ID in URL Path)
+// ==============================================================================
+
+// POST /api/webhooks/:token - Direct Webhook Ingestion by Path Token
+app.post("/api/webhooks/:token", (req, res) => {
+  const { token } = req.params;
+  const targetChannel = serverChannels.find((c) => c.webhookToken === token);
+
+  const title = req.body.title || (targetChannel ? `Alert: ${targetChannel.name}` : "Incoming Webhook Notification");
+  const message = req.body.message || req.body.content || req.body.text || JSON.stringify(req.body);
+  const priority = req.body.priority || "normal";
+  const type = req.body.type || "info";
+
+  const newNotif = {
+    id: "notif_wh_" + Math.random().toString(36).substring(2, 10),
+    userId: "hoanxuanmai",
+    recipientId: targetChannel ? `channel:${targetChannel.id}` : "webhook_recipient",
+    channelId: targetChannel ? targetChannel.id : null,
+    title,
+    message,
+    content: message,
+    type,
+    channel: "webhook",
+    priority,
+    payload: req.body,
+    isRead: false,
+    read: false,
+    isArchived: false,
+    isPinned: false,
+    createdAt: new Date().toISOString(),
+  };
+
+  serverNotifications.unshift(newNotif);
+
+  const log = {
+    id: "log_wh_" + Math.random().toString(36).substring(2, 9),
+    notificationId: newNotif.id,
+    channel: "webhook",
+    status: "delivered",
+    latencyMs: 8,
+    deliveredAt: new Date().toISOString(),
+    provider: "path_webhook_dispatcher",
+  };
+  serverDeliveryLogs.unshift(log);
+
+  res.status(200).json({
+    success: true,
+    message: "Webhook processed and notification dispatched successfully",
+    channel: targetChannel?.name || "Global Webhook Receiver",
+    notification: newNotif,
+  });
+});
+
+// POST /api/channels/:id/webhook - Webhook Ingestion by Channel ID in Path
+app.post("/api/channels/:id/webhook", (req, res) => {
+  const { id } = req.params;
+  const token = (req.query.token as string) || req.headers["x-channel-token"] || req.headers["x-webhook-token"] || req.body.webhookToken;
+  const targetChannel = serverChannels.find((c) => c.id === id);
+
+  if (!targetChannel) {
+    return res.status(404).json({ error: `Channel with ID ${id} not found` });
+  }
+
+  // If token is provided, verify it
+  if (token && targetChannel.webhookToken !== token) {
+    return res.status(401).json({ error: "Invalid webhook token for this channel" });
+  }
+
+  const title = req.body.title || `Alert: ${targetChannel.name}`;
+  const message = req.body.message || req.body.content || req.body.text || "Channel webhook payload received";
+  const priority = req.body.priority || "normal";
+  const type = req.body.type || "info";
+
+  const newNotif = {
+    id: "notif_ch_" + Math.random().toString(36).substring(2, 10),
+    userId: "hoanxuanmai",
+    recipientId: `channel:${targetChannel.id}`,
+    channelId: targetChannel.id,
+    title,
+    message,
+    content: message,
+    type,
+    channel: "in_app",
+    priority,
+    payload: req.body,
+    isRead: false,
+    read: false,
+    isArchived: false,
+    isPinned: false,
+    createdAt: new Date().toISOString(),
+  };
+
+  serverNotifications.unshift(newNotif);
+
+  res.status(200).json({
+    success: true,
+    message: `Dispatched to channel "${targetChannel.name}" via path URL`,
+    notification: newNotif,
+  });
+});
+
+// GET /api/webhooks/:token - Webhook Health/Metadata Check
+app.get("/api/webhooks/:token", (req, res) => {
+  const { token } = req.params;
+  const targetChannel = serverChannels.find((c) => c.webhookToken === token);
+  if (!targetChannel) {
+    return res.status(404).json({ error: "Webhook token not found or invalid" });
+  }
+  res.json({
+    status: "active",
+    channelId: targetChannel.id,
+    channelName: targetChannel.name,
+    isActive: targetChannel.isActive,
+    endpoint: `/api/webhooks/${token}`,
+  });
+});
+
+// GET /api/notifications - List Notifications
+app.get("/api/notifications", (req, res) => {
+  const { channelId, userId } = req.query;
+  let items = serverNotifications;
+  if (channelId) {
+    items = items.filter((n) => n.channelId === channelId);
+  }
+  if (userId) {
+    items = items.filter((n) => n.userId === userId);
+  }
+  res.json({
+    success: true,
+    notifications: items,
+    total: items.length,
+  });
+});
+
+// GET /api/logs - Delivery Logs
+app.get("/api/logs", (_req, res) => {
+  res.json({
+    success: true,
+    logs: serverDeliveryLogs,
+    total: serverDeliveryLogs.length,
+  });
+});
+
+// Send Push Notification (Same as NestJS WebPushService.sendNotification or Supabase send-webpush Edge Function)
+app.post("/api/webpush/send", async (req, res) => {
+  const { payload, targetUserId, subscriptionId, vapidKeys } = req.body;
+  const startTime = Date.now();
+
+  const title = payload?.title || "New Web Push";
+  const body = payload?.body || "You have a new update";
+  const activeKeys = vapidKeys || serverVapidKeys;
+
+  // Simulate Push Service delivery latency (FCM / Apple APNs / Mozilla autopush)
+  const deliveryLatency = Math.floor(Math.random() * 45) + 25;
+
+  const targetSubs = subscriptionId
+    ? serverSubscriptions.filter((s) => s.id === subscriptionId)
+    : serverSubscriptions.filter((s) => !targetUserId || s.userId === targetUserId);
+
+  const deliveredCount = Math.max(1, targetSubs.length);
+
+  return res.json({
+    success: true,
+    message: `Web push delivered to ${deliveredCount} active subscription(s)`,
+    deliveredCount,
+    latencyMs: deliveryLatency,
+    receiptId: "wp_" + Math.random().toString(36).substring(2, 10),
+    timestamp: new Date().toISOString(),
+    payloadSummary: {
+      title,
+      body,
+      tag: payload?.tag,
+      hasActions: Boolean(payload?.actions?.length),
+      vapidSubject: activeKeys.subject,
+    },
+    protocol: "RFC 8291 / RFC 8292 (VAPID ECDSA P-256)",
+  });
+});
+
 
 // Fallback Rule-based converter
 function generateRuleBasedConversion(code: string, sourceType?: string) {

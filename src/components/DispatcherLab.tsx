@@ -24,10 +24,13 @@ import confetti from 'canvas-confetti';
 
 interface DispatcherLabProps {
   deliveryLogs: DeliveryLog[];
+  initialChannelId?: string;
   onDispatched?: () => void;
 }
 
-export const DispatcherLab: React.FC<DispatcherLabProps> = ({ deliveryLogs, onDispatched }) => {
+export const DispatcherLab: React.FC<DispatcherLabProps> = ({ deliveryLogs, initialChannelId, onDispatched }) => {
+  const [channels] = useState(notificationService.getChannels());
+  const [selectedChannelId, setSelectedChannelId] = useState<string>(initialChannelId || '');
   const [title, setTitle] = useState('Deployment Succeeded: v2.5.0 in Production');
   const [message, setMessage] = useState('Build completed in 34 seconds with zero errors. 14 functions updated.');
   const [type, setType] = useState<NotificationCategory>('system');
@@ -37,7 +40,7 @@ export const DispatcherLab: React.FC<DispatcherLabProps> = ({ deliveryLogs, onDi
   const [actionLabel, setActionLabel] = useState('View Deployment Logs');
   const [senderName, setSenderName] = useState('Supabase Deploy Hook');
   const [senderRole, setSenderRole] = useState('DevOps Engine');
-  const [targetUserId, setTargetUserId] = useState('usr-dev-9921');
+  const [targetUserId, setTargetUserId] = useState('hoanxuanmai');
   const [customJsonPayload, setCustomJsonPayload] = useState('{\n  "environment": "production",\n  "commit": "8f39a1c",\n  "buildTimeMs": 34120\n}');
   
   const [isSending, setIsSending] = useState(false);
@@ -58,11 +61,15 @@ export const DispatcherLab: React.FC<DispatcherLabProps> = ({ deliveryLogs, onDi
     }
 
     try {
+      const activeCh = channels.find((c) => c.id === selectedChannelId);
+
       const dispatched = await notificationService.dispatchNotification({
         title,
         message,
         type,
         channel,
+        channelId: selectedChannelId || undefined,
+        channelName: activeCh?.name,
         priority,
         actionUrl: actionUrl.trim() || undefined,
         actionLabel: actionLabel.trim() || undefined,
@@ -239,6 +246,25 @@ export const DispatcherLab: React.FC<DispatcherLabProps> = ({ deliveryLogs, onDi
                 placeholder="Details of the notification payload..."
                 className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 leading-relaxed"
               />
+            </div>
+
+            {/* Target Channel Hub Selection */}
+            <div>
+              <label className="text-xs font-medium text-slate-300 block mb-1">
+                Target Channel (RLS & Members)
+              </label>
+              <select
+                value={selectedChannelId}
+                onChange={(e) => setSelectedChannelId(e.target.value)}
+                className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-indigo-300 font-semibold focus:outline-none focus:border-indigo-500"
+              >
+                <option value="">-- Direct Notification (No Channel Isolation) --</option>
+                {channels.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    Channel: #{c.name} ({c.members?.length || 1} members)
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Category & Channel Selectors */}

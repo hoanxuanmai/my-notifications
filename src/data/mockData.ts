@@ -1,9 +1,142 @@
-import { NotificationItem, NotificationTemplate, UserPreferences, NestJSMigrationItem } from '../types';
+import { NotificationItem, NotificationTemplate, UserPreferences, NestJSMigrationItem, AppChannel } from '../types';
+
+export const INITIAL_CHANNELS: AppChannel[] = [
+  {
+    id: 'a0000000-0000-0000-0000-000000000001',
+    userId: 'hoanxuanmai',
+    name: 'General Alerts',
+    description: 'Primary notification channel for general announcements and application updates',
+    webhookToken: 'webhook_token_general_01',
+    settings: { template: 'default' },
+    isActive: true,
+    members: [
+      {
+        id: 'mem-1',
+        channelId: 'a0000000-0000-0000-0000-000000000001',
+        userId: 'hoanxuanmai',
+        email: 'hoanxuanmai@gmail.com',
+        role: 'owner',
+      },
+    ],
+    _count: { notifications: 1 },
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+  },
+  {
+    id: 'a0000000-0000-0000-0000-000000000002',
+    userId: 'hoanxuanmai',
+    name: 'Engineering & DevOps',
+    description: 'CI/CD pipeline alerts, Kafka broker events, and Supabase database migrations',
+    webhookToken: 'webhook_token_devops_02',
+    settings: { template: 'slack' },
+    isActive: true,
+    members: [
+      {
+        id: 'mem-2',
+        channelId: 'a0000000-0000-0000-0000-000000000002',
+        userId: 'hoanxuanmai',
+        email: 'hoanxuanmai@gmail.com',
+        role: 'owner',
+      },
+      {
+        id: 'mem-3',
+        channelId: 'a0000000-0000-0000-0000-000000000002',
+        userId: 'dev-alex',
+        email: 'alex.nguyen@company.com',
+        role: 'member',
+      },
+    ],
+    _count: { notifications: 2 },
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14).toISOString(),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 42).toISOString(),
+  },
+];
 
 export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
   {
+    id: '11111111-1111-1111-1111-111111111111',
+    userId: 'hoanxuanmai',
+    channelId: 'a0000000-0000-0000-0000-000000000001',
+    channelName: 'General Alerts',
+    title: 'Supabase Channel Realtime Synchronized',
+    message: 'Your channel "General Alerts" is live with real-time WebSocket replication enabled.',
+    type: 'system',
+    channel: 'in_app',
+    priority: 'high',
+    payload: {
+      service: 'my-notifications',
+      source: 'supabase_channel',
+    },
+    isRead: false,
+    readAt: null,
+    isArchived: false,
+    isPinned: true,
+    actionUrl: '/channels/a0000000-0000-0000-0000-000000000001',
+    actionLabel: 'View Channel',
+    sender: {
+      name: 'Notification Hub',
+      role: 'Engine',
+    },
+    createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(), // 5 mins ago
+    updatedAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+  },
+  {
+    id: '22222222-2222-2222-2222-222222222222',
+    userId: 'hoanxuanmai',
+    channelId: 'a0000000-0000-0000-0000-000000000002',
+    channelName: 'Engineering & DevOps',
+    title: 'Channel Members RLS Enforced',
+    message: 'Only channel owners and invited members can view, read, and dispatch notifications in this channel.',
+    type: 'security',
+    channel: 'in_app',
+    priority: 'urgent',
+    payload: {
+      securityLevel: 'high',
+      channelAccess: 'member_protected',
+    },
+    isRead: false,
+    readAt: null,
+    isArchived: false,
+    isPinned: true,
+    actionUrl: '/security/channels',
+    actionLabel: 'Verify Permissions',
+    sender: {
+      name: 'Security Guard',
+      role: 'Database Enforcer',
+    },
+    createdAt: new Date(Date.now() - 1000 * 60 * 42).toISOString(), // 42 mins ago
+    updatedAt: new Date(Date.now() - 1000 * 60 * 42).toISOString(),
+  },
+  {
+    id: '33333333-3333-3333-3333-333333333333',
+    userId: 'hoanxuanmai',
+    channelId: 'a0000000-0000-0000-0000-000000000002',
+    channelName: 'Engineering & DevOps',
+    title: 'Kafka Event Dispatched into Channel',
+    message: 'Message received via Webhook & Kafka Bridge dispatched to Engineering & DevOps channel.',
+    type: 'tasks',
+    channel: 'webhook',
+    priority: 'normal',
+    payload: {
+      topic: 'notification.send',
+      partition: 2,
+      offset: 1094,
+    },
+    isRead: true,
+    readAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
+    isArchived: false,
+    actionUrl: '/channels/a0000000-0000-0000-0000-000000000002',
+    actionLabel: 'Inspect Payload',
+    sender: {
+      name: 'Kafka Edge Bridge',
+      role: 'Event Pipeline',
+    },
+    createdAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(), // 2 hours ago
+    updatedAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
+  },
+  {
     id: 'notif-001',
-    userId: 'usr-dev-9921',
+    userId: 'hoanxuanmai',
     title: 'Critical Security Alert: New Login from Unknown IP',
     message: 'A new session was authenticated from Hanoi, Vietnam (IP: 118.70.124.52) via Supabase Auth.',
     type: 'security',
@@ -25,12 +158,12 @@ export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
       name: 'Supabase Auth Guard',
       role: 'Security Engine',
     },
-    createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(), // 5 mins ago
-    updatedAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+    createdAt: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
   },
   {
     id: 'notif-002',
-    userId: 'usr-dev-9921',
+    userId: 'hoanxuanmai',
     title: 'Stripe Invoice #INV-2026-883 Paid ($129.00)',
     message: 'Your monthly Supabase Pro + Realtime plan subscription payment of $129.00 succeeded.',
     type: 'billing',
@@ -52,8 +185,8 @@ export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
       name: 'Stripe Webhook Trigger',
       role: 'Billing Provider',
     },
-    createdAt: new Date(Date.now() - 1000 * 60 * 42).toISOString(), // 42 mins ago
-    updatedAt: new Date(Date.now() - 1000 * 60 * 42).toISOString(),
+    createdAt: new Date(Date.now() - 1000 * 60 * 300).toISOString(),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 300).toISOString(),
   },
   {
     id: 'notif-003',
@@ -160,7 +293,7 @@ export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
 ];
 
 export const INITIAL_PREFERENCES: UserPreferences = {
-  userId: 'usr-dev-9921',
+  userId: 'hoanxuanmai',
   emailEnabled: true,
   pushEnabled: true,
   inAppEnabled: true,
