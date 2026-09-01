@@ -112,16 +112,13 @@ export const useAuthStore = create<AuthState>((set, get) => {
         });
 
         if (error) {
-          console.warn('Supabase Auth signIn note:', error.message);
-          // Fallback to local session if network or dev environment
-          const fallbackUser: User = {
-            id: `usr-${Date.now()}`,
-            email,
-            username: emailOrUsername.split('@')[0],
-            name: emailOrUsername.split('@')[0],
-          };
-          setAuth({ access_token: `sb-token-${Date.now()}`, user: fallbackUser });
-          return;
+          // Surface the real failure instead of silently faking a signed-in
+          // session with a non-UUID id — that left users looking "logged in"
+          // while every RLS-scoped query/write against their real data
+          // (channels, notifications, push subscriptions, ...) silently
+          // failed or ran unauthenticated.
+          set({ loading: false, error: error.message });
+          throw error;
         }
 
         if (data.session && data.user) {
@@ -157,7 +154,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
         });
 
         if (error) {
-          console.warn('Supabase Auth signUp note:', error.message);
+          // Same reasoning as login(): don't fabricate a fake account when
+          // signUp actually failed (e.g. email already registered).
+          set({ loading: false, error: error.message });
+          throw error;
         }
 
         const newUser: User = {
