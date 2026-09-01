@@ -81,7 +81,7 @@ export default function ChannelSettingsModal({
   const isOwner = !!user && channel.userId === user.id;
 
   const { url: supabaseUrl } = getSupabaseConfig();
-  const webhookUrl = `${supabaseUrl}/functions/v1/webhooks?token=${channel.webhookToken}`;
+  const webhookUrl = `${supabaseUrl}/functions/v1/webhooks/${channel.webhookToken}`;
 
   const handleCopyWebhook = async () => {
     try {

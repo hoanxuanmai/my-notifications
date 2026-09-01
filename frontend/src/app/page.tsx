@@ -16,7 +16,7 @@ function MainContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   // Initialize auth-store to restore from localStorage and subscribe user
-  const { user, logout } = useAuthStore();
+  const { user, token, logout, initAuth } = useAuthStore();
   const {
     fetchChannels,
     fetchNotifications,
@@ -31,12 +31,15 @@ function MainContent() {
     setIsMounted(true);
   }, []);
 
+  // Restore/verify the real Supabase session (may override the default
+  // demo user once a session or saved credentials are found).
   useEffect(() => {
     if (!isMounted) return;
+    initAuth();
+  }, [isMounted, initAuth]);
 
-    const token = typeof window !== 'undefined'
-      ? localStorage.getItem('auth_token')
-      : null;
+  useEffect(() => {
+    if (!isMounted) return;
 
     if (!token || !user) {
       setShowLoginModal(true);
@@ -46,7 +49,7 @@ function MainContent() {
     setShowLoginModal(false);
     fetchChannels();
     fetchNotifications();
-  }, [fetchChannels, fetchNotifications, isMounted, user]);
+  }, [fetchChannels, fetchNotifications, isMounted, user, token]);
 
   // If URL has ?channelId, auto-select that channel (when available)
   useEffect(() => {

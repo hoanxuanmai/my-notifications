@@ -41,22 +41,26 @@ export function getSupabase(): SupabaseClient {
 
 export const supabase = getSupabase();
 
-// Data mappers to convert Supabase snake_case schema to Frontend camelCase types
+// Data mappers to convert Supabase schema to Frontend camelCase types.
+// Rows may arrive in snake_case (direct table select) or camelCase
+// (RPCs like get_user_channels that build JSON objects), so accept both.
 export function mapChannelFromDb(row: any): Channel {
+  const isActive = row.is_active ?? row.isActive;
   return {
     id: row.id,
-    userId: row.user_id,
+    userId: row.user_id ?? row.userId,
     name: row.name,
     description: row.description || '',
-    webhookToken: row.webhook_token || '',
-    apiKey: row.api_key || '',
+    webhookToken: row.webhook_token ?? row.webhookToken ?? '',
+    apiKey: row.api_key ?? row.apiKey ?? '',
     settings: typeof row.settings === 'object' && row.settings !== null ? row.settings : { template: 'default' },
-    isActive: row.is_active !== false,
-    createdAt: row.created_at || new Date().toISOString(),
-    updatedAt: row.updated_at || new Date().toISOString(),
-    expiresAt: row.expires_at || '',
-    notifications: Array.isArray(row.notifications) 
-      ? row.notifications.map(mapNotificationFromDb) 
+    isActive: isActive !== false,
+    createdAt: row.created_at ?? row.createdAt ?? new Date().toISOString(),
+    updatedAt: row.updated_at ?? row.updatedAt ?? new Date().toISOString(),
+    expiresAt: row.expires_at ?? row.expiresAt ?? '',
+    _count: row._count,
+    notifications: Array.isArray(row.notifications)
+      ? row.notifications.map(mapNotificationFromDb)
       : [],
   };
 }
@@ -64,17 +68,17 @@ export function mapChannelFromDb(row: any): Channel {
 export function mapNotificationFromDb(row: any): Notification {
   return {
     id: row.id,
-    channelId: row.channel_id,
+    channelId: row.channel_id ?? row.channelId,
     title: row.title || 'Notification',
     message: row.message || '',
     type: (row.type as NotificationType) || ('info' as NotificationType),
     priority: (row.priority as NotificationPriority) || ('medium' as NotificationPriority),
     read: Boolean(row.read ?? row.is_read ?? false),
     metadata: typeof row.metadata === 'object' && row.metadata !== null ? row.metadata : {},
-    readAt: row.read_at,
-    createdAt: row.created_at || new Date().toISOString(),
-    updatedAt: row.updated_at || new Date().toISOString(),
-    expiresAt: row.expires_at || '',
+    readAt: row.read_at ?? row.readAt,
+    createdAt: row.created_at ?? row.createdAt ?? new Date().toISOString(),
+    updatedAt: row.updated_at ?? row.updatedAt ?? new Date().toISOString(),
+    expiresAt: row.expires_at ?? row.expiresAt ?? '',
     channel: row.channel ? {
       id: row.channel.id,
       name: row.channel.name,
