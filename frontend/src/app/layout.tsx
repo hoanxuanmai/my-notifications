@@ -1,30 +1,29 @@
-import type { Metadata } from 'next'
-import './globals.css'
-
-import dynamic from 'next/dynamic';
-const GlobalLoading = dynamic(() => import('../components/common/GlobalLoading'), { ssr: false });
-const WebpushNotice = dynamic(() => import('../components/common/WebpushNotice'), { ssr: false });
+import type { Metadata, Viewport } from 'next';
+import './globals.css';
+import ClientProviders from '@/components/common/ClientProviders';
 
 export const metadata: Metadata = {
   title: 'My Notifications',
-  description: 'Realtime notification system for developers',
+  description: 'Real-time notification dashboard connected to Supabase backend, channels, webhooks, and push delivery.',
   manifest: '/manifest.json',
+};
+
+export const viewport: Viewport = {
   themeColor: '#0f172a',
-}
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
     <html lang="en">
       <body className="min-h-screen bg-background text-foreground antialiased">
-        <GlobalLoading />
-        <WebpushNotice lang={typeof navigator !== 'undefined' && (navigator.language || '').toLowerCase().startsWith('vi') ? 'vi' : 'en'} />
-        {children}
+        <ClientProviders>
+          {children}
+        </ClientProviders>
       </body>
     </html>
-  )
+  );
 }
-

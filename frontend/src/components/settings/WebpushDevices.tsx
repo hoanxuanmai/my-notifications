@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import { useAuthStore } from '@/stores/auth-store';
 import { userMeApi } from "@/lib/api";
@@ -15,7 +15,6 @@ interface Device {
 }
 
 export default function WebpushDevices() {
-
   const [devices, setDevices] = useState<Device[]>([]);
   const [error, setError] = useState<string | null>(null);
   const token = useAuthStore((s) => s.token);
@@ -25,7 +24,7 @@ export default function WebpushDevices() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  const fetchDevices = async () => {
+  const fetchDevices = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -36,12 +35,13 @@ export default function WebpushDevices() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [setLoading]);
 
   useEffect(() => {
-    if (token) fetchDevices();
-  }, [token]);
-
+    if (token) {
+      fetchDevices();
+    }
+  }, [token, fetchDevices]);
 
   const handleDelete = (id: string) => {
     setPendingDeleteId(id);

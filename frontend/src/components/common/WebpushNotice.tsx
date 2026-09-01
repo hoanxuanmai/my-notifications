@@ -16,7 +16,7 @@ const WEBPUSH_MESSAGES = {
   }
 };
 
-export default function WebpushNotice({ lang }: { lang: 'vi' | 'en' }) {
+export default function WebpushNotice({ lang = 'en' }: { lang?: 'vi' | 'en' }) {
   const [webpush, setWebpush] = useState<'default'|'granted'|'denied'|'init'>('init');
   const [visible, setVisible] = useState(true);
   useEffect(() => {

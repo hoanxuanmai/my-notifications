@@ -3,20 +3,25 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3000 -H 0.0.0.0",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3000 -H 0.0.0.0",
     "lint": "next lint"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.112.4",
+    "axios": "^1.6.2",
+    "clsx": "^2.0.0",
+    "date-fns": "^3.0.6",
+    "lucide-react": "^1.38.0",
     "next": "14.0.4",
+    "picocolors": "^1.1.1",
+    "postcss-load-config": "^6.0.1",
+    "postcss-nested": "^8.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "axios": "^1.6.2",
     "socket.io-client": "^4.6.0",
-    "zustand": "^4.4.7",
-    "date-fns": "^3.0.6",
-    "clsx": "^2.0.0"
+    "zustand": "^4.4.7"
   },
   "devDependencies": {
     "@types/node": "^20.10.4",
@@ -24,10 +29,9 @@
     "@types/react-dom": "^18.2.17",
     "typescript": "^5.3.2",
     "tailwindcss": "^3.3.6",
-    "postcss": "^8.4.32",
+    "postcss": "^8.5.26",
     "autoprefixer": "^10.4.16",
     "eslint": "^8.54.0",
     "eslint-config-next": "14.0.4"
   }
 }
-

@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import type { Channel, ChannelTemplate } from '@/types';
 import { channelsApi } from '@/lib/api';
+import { getSupabaseConfig } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth-store';
 import { useNotificationsStore } from '@/stores/notifications-store';
 
@@ -79,9 +80,8 @@ export default function ChannelSettingsModal({
 
   const isOwner = !!user && channel.userId === user.id;
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-  const baseUrl = apiUrl.replace(/\/api$/, '');
-  const webhookUrl = `${baseUrl}/api/webhooks/${channel.webhookToken}`;
+  const { url: supabaseUrl } = getSupabaseConfig();
+  const webhookUrl = `${supabaseUrl}/functions/v1/webhooks?token=${channel.webhookToken}`;
 
   const handleCopyWebhook = async () => {
     try {
