@@ -8,7 +8,7 @@ import { useAlertStore } from '@/stores/alert-store';
 export default function RegisterPage() {
   const router = useRouter();
   const { loading, error } = useAuthStore();
-  const register = useAuthStore((s) => s.register)
+  const register = useAuthStore((s) => s.register);
 
   const [username, setUsername] = useState('');
   const [name, setName] = useState('');
@@ -24,8 +24,18 @@ export default function RegisterPage() {
     }
     try {
       await register({ username, email, password, name });
-      showAlert('Registration successful! Please sign in.', 'Register');
-      router.push('/');
+      const { user, pendingConfirmation } = useAuthStore.getState();
+      if (user) {
+        router.replace('/');
+      } else if (pendingConfirmation) {
+        showAlert(
+          'Account created. Check your email to confirm it, then sign in.',
+          'Register'
+        );
+        router.replace('/login');
+      } else {
+        router.replace('/login');
+      }
     } catch {
       // error state is handled in store
     }

@@ -4,7 +4,7 @@ import type {
   NotificationResponse,
   CreateChannelDto,
 } from '@/types';
-import { supabase, mapChannelFromDb, mapNotificationFromDb } from './supabase';
+import { supabase, getSupabaseConfig, mapChannelFromDb, mapNotificationFromDb } from './supabase';
 
 // Mock initial data in case Supabase is in offline/demo mode
 let localChannels: Channel[] = [
@@ -435,55 +435,101 @@ export const notificationsApi = {
 // Web Push / Delivery API via Supabase
 export const pushApi = {
   subscribe: async (subscription: any): Promise<{ id: string }> => {
-    try {
-      const userRes = await supabase.auth.getUser();
-      // push_subscriptions.user_id is a UUID FK — leave it null rather than
-      // the string 'anonymous' (which Postgres rejects) when there's no
-      // real Supabase auth session.
-      const userId = userRes.data?.user?.id || null;
-      const subJson = subscription?.toJSON ? subscription.toJSON() : subscription;
+    // A real Supabase session is now required to use the app, so this always
+    // runs authenticated and user_id is the caller's real UUID. Without it the
+    // send-webpush Edge Function can't target this browser.
+    const userRes = await supabase.auth.getUser();
+    const userId = userRes.data?.user?.id;
+    if (!userId) {
+      throw new Error('Cannot register push subscription without an authenticated user');
+    }
 
-      const { data, error } = await supabase
-        .from('push_subscriptions')
-        .upsert({
+    const subJson = subscription?.toJSON ? subscription.toJSON() : subscription;
+
+    const { data, error } = await supabase
+      .from('push_subscriptions')
+      .upsert(
+        {
           user_id: userId,
           endpoint: subJson.endpoint,
           p256dh: subJson.keys?.p256dh,
           auth_token: subJson.keys?.auth,
+          is_active: true,
           updated_at: new Date().toISOString(),
-        }, { onConflict: 'endpoint' })
-        .select('id')
-        .single();
+        },
+        { onConflict: 'endpoint' }
+      )
+      .select('id')
+      .single();
 
-      if (!error && data) return { id: data.id };
-    } catch (err) {
-      console.warn('Supabase push subscribe error:', err);
+    if (error) {
+      console.warn('Supabase push subscribe error:', error);
+      throw error;
     }
-    return { id: `sub-${Date.now()}` };
+    return { id: data.id };
+  },
+};
+
+// Notification delivery — always routed through the `webhooks` Edge Function
+// so the same code path also fans the notification out to Web Push
+// (webhooks -> send-webpush). Never insert into `notifications` directly.
+export const deliveryApi = {
+  trigger: async (payload: {
+    title: string;
+    message: string;
+    type?: string;
+    priority?: string;
+    channelToken?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<{ ok: boolean; error?: string }> => {
+    const { url } = getSupabaseConfig();
+    const { data: sessionRes } = await supabase.auth.getSession();
+    const session = sessionRes.session;
+    if (!session?.user) {
+      return { ok: false, error: 'Not authenticated' };
+    }
+
+    // The webhook endpoint is open (no auth). We just pass user_id so the
+    // notification (and its Web Push fan-out) is scoped to the current user.
+    const endpoint = payload.channelToken
+      ? `${url}/functions/v1/webhooks/${payload.channelToken}`
+      : `${url}/functions/v1/webhooks`;
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: payload.title,
+          message: payload.message,
+          type: payload.type ?? 'info',
+          priority: payload.priority ?? 'normal',
+          user_id: session.user.id,
+          metadata: payload.metadata ?? {},
+        }),
+      });
+      if (!res.ok) {
+        return { ok: false, error: `Webhook responded ${res.status}` };
+      }
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'Request failed' };
+    }
   },
 };
 
 // User Profile & Settings
 export const userMeApi = {
   getMe: async (): Promise<any> => {
-    try {
-      const { data } = await supabase.auth.getUser();
-      if (data?.user) {
-        return {
-          id: data.user.id,
-          email: data.user.email,
-          username: data.user.user_metadata?.username || data.user.email?.split('@')[0],
-          name: data.user.user_metadata?.name || data.user.email?.split('@')[0],
-        };
-      }
-    } catch (err) {
-      console.warn('Supabase getMe error:', err);
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data?.user) {
+      throw error || new Error('Not authenticated');
     }
     return {
-      id: 'demo-user-id',
-      email: 'hoanxuanmai@gmail.com',
-      username: 'hoanxuanmai',
-      name: 'Hoan Xuan Mai',
+      id: data.user.id,
+      email: data.user.email,
+      username: data.user.user_metadata?.username || data.user.email?.split('@')[0],
+      name: data.user.user_metadata?.name || data.user.email?.split('@')[0],
     };
   },
 

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
+import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { wsService } from '@/lib/websocket';
-import { setApiAuthToken } from '@/lib/api';
 import { useNotificationsStore } from '@/stores/notifications-store';
 
 export interface User {
@@ -22,160 +22,150 @@ export interface RegisterInput {
 interface AuthState {
   user: User | null;
   token: string | null;
+  /** true until the first initAuth() resolves — used to gate route guards */
   loading: boolean;
+  initialized: boolean;
+  /** set by register() when sign-up succeeded but needs email confirmation */
+  pendingConfirmation: boolean;
   error: string | null;
   initAuth: () => Promise<void>;
-  login: (emailOrUsername: string, password: string) => Promise<void>;
-  logout: () => void;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
   updateProfile: (data: Partial<User>) => void;
 }
 
-const DEFAULT_DEMO_USER: User = {
-  id: 'usr-main-ops',
-  email: 'hoanxuanmai@gmail.com',
-  username: 'hoanxuanmai',
-  name: 'Hoan Xuan Mai',
-};
+// Legacy keys written by older builds that faked a session. They must never
+// be treated as authoritative again — initAuth() deletes them on every load.
+const LEGACY_KEYS = ['auth_token', 'auth_user'];
+
+function mapUser(u: SupabaseUser): User {
+  const meta = (u.user_metadata ?? {}) as Record<string, unknown>;
+  const emailLocal = u.email?.split('@')[0];
+  return {
+    id: u.id,
+    email: u.email ?? '',
+    username: (meta.username as string) || emailLocal || 'user',
+    name: (meta.name as string) || (meta.username as string) || emailLocal || 'User',
+    avatar: (meta.avatar_url as string) ?? null,
+  };
+}
+
+let authListenerBound = false;
 
 export const useAuthStore = create<AuthState>((set, get) => {
-  const setAuth = (data: { access_token: string; user: User }) => {
-    const { access_token, user } = data;
-
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('auth_token', access_token);
-      localStorage.setItem('auth_user', JSON.stringify(user));
-      wsService.subscribeUser(user.id);
+  const applySession = (session: Session | null) => {
+    if (session?.user) {
+      const user = mapUser(session.user);
+      if (typeof window !== 'undefined') {
+        try {
+          wsService.subscribeUser(user.id);
+        } catch {
+          /* realtime is best-effort */
+        }
+      }
+      set({
+        user,
+        token: session.access_token,
+        loading: false,
+        initialized: true,
+        pendingConfirmation: false,
+        error: null,
+      });
+    } else {
+      set({ user: null, token: null, loading: false, initialized: true });
     }
-
-    setApiAuthToken(access_token);
-    set({ user, token: access_token, loading: false, error: null });
   };
 
   return {
-    user: DEFAULT_DEMO_USER,
-    token: 'sb-session-token-active',
-    loading: false,
+    user: null,
+    token: null,
+    loading: true,
+    initialized: false,
+    pendingConfirmation: false,
     error: null,
 
     async initAuth() {
       if (typeof window === 'undefined') return;
 
-      const token = localStorage.getItem('auth_token');
-      const userRaw = localStorage.getItem('auth_user');
+      // Drop any fake-session leftovers from older builds.
+      LEGACY_KEYS.forEach((k) => localStorage.removeItem(k));
 
-      if (token && userRaw) {
-        try {
-          const parsed = JSON.parse(userRaw) as User;
-          setAuth({ access_token: token, user: parsed });
-          return;
-        } catch {
-          // ignore parse error
-        }
+      if (!authListenerBound) {
+        authListenerBound = true;
+        supabase.auth.onAuthStateChange((_event, session) => {
+          applySession(session ?? null);
+        });
       }
 
-      // Check active Supabase session
       try {
-        const { data } = await supabase.auth.getSession();
-        if (data.session && data.session.user) {
-          const u = data.session.user;
-          const user: User = {
-            id: u.id,
-            email: u.email || 'user@example.com',
-            username: u.user_metadata?.username || u.email?.split('@')[0] || 'user',
-            name: u.user_metadata?.name || u.email?.split('@')[0] || 'User',
-          };
-          setAuth({ access_token: data.session.access_token, user });
-          return;
-        }
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        applySession(data.session ?? null);
       } catch (err) {
-        console.warn('Supabase getSession note:', err);
-      }
-
-      // If no session found in localStorage, keep default demo user for instant accessibility
-      if (!token) {
-        setAuth({ access_token: 'sb-session-token-active', user: DEFAULT_DEMO_USER });
+        console.warn('Supabase getSession failed:', err);
+        set({ user: null, token: null, loading: false, initialized: true });
       }
     },
 
-    async login(emailOrUsername: string, password: string) {
+    async login(email: string, password: string) {
       set({ loading: true, error: null });
-      try {
-        const email = emailOrUsername.includes('@')
-          ? emailOrUsername
-          : `${emailOrUsername.toLowerCase()}@example.com`;
 
-        // 1. Attempt Supabase Auth
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (error) {
-          // Surface the real failure instead of silently faking a signed-in
-          // session with a non-UUID id — that left users looking "logged in"
-          // while every RLS-scoped query/write against their real data
-          // (channels, notifications, push subscriptions, ...) silently
-          // failed or ran unauthenticated.
-          set({ loading: false, error: error.message });
-          throw error;
-        }
-
-        if (data.session && data.user) {
-          const user: User = {
-            id: data.user.id,
-            email: data.user.email || email,
-            username: data.user.user_metadata?.username || email.split('@')[0],
-            name: data.user.user_metadata?.name || email.split('@')[0],
-          };
-          setAuth({ access_token: data.session.access_token, user });
-        }
-      } catch (err: any) {
-        set({
-          loading: false,
-          error: err?.message || 'Login failed',
-        });
-        throw err;
+      const normalized = email.trim().toLowerCase();
+      if (!normalized.includes('@') || !/^\S+@\S+\.\S+$/.test(normalized)) {
+        const msg = 'Please sign in with your email address.';
+        set({ loading: false, error: msg });
+        throw new Error(msg);
       }
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: normalized,
+        password,
+      });
+
+      if (error) {
+        set({ loading: false, error: error.message });
+        throw error;
+      }
+
+      applySession(data.session ?? null);
     },
 
     async register(input: RegisterInput) {
-      set({ loading: true, error: null });
-      try {
-        const { data, error } = await supabase.auth.signUp({
-          email: input.email,
-          password: input.password,
-          options: {
-            data: {
-              username: input.username,
-              name: input.name,
-            },
-          },
-        });
+      set({ loading: true, error: null, pendingConfirmation: false });
 
-        if (error) {
-          // Same reasoning as login(): don't fabricate a fake account when
-          // signUp actually failed (e.g. email already registered).
-          set({ loading: false, error: error.message });
-          throw error;
-        }
-
-        const newUser: User = {
-          id: data?.user?.id || `usr-${Date.now()}`,
-          email: input.email,
-          username: input.username,
-          name: input.name,
-        };
-
-        const token = data?.session?.access_token || `sb-token-${Date.now()}`;
-        setAuth({ access_token: token, user: newUser });
-      } catch (err: any) {
-        set({
-          loading: false,
-          error: err?.message || 'Registration failed',
-        });
-        throw err;
+      const email = input.email.trim().toLowerCase();
+      if (!/^\S+@\S+\.\S+$/.test(email)) {
+        const msg = 'A valid email address is required.';
+        set({ loading: false, error: msg });
+        throw new Error(msg);
       }
+
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password: input.password,
+        options: {
+          data: {
+            username: input.username.trim(),
+            name: input.name.trim(),
+          },
+        },
+      });
+
+      if (error) {
+        set({ loading: false, error: error.message });
+        throw error;
+      }
+
+      if (data.session) {
+        applySession(data.session);
+        return;
+      }
+
+      // Sign-up succeeded but the project requires email confirmation — there
+      // is no session yet. Never fabricate one; let the UI ask the user to
+      // confirm their email and then sign in.
+      set({ loading: false, pendingConfirmation: true, error: null });
     },
 
     updateProfile(data: Partial<User>) {
@@ -183,25 +173,35 @@ export const useAuthStore = create<AuthState>((set, get) => {
       if (!current) return;
       const updated = { ...current, ...data };
       set({ user: updated });
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('auth_user', JSON.stringify(updated));
-      }
+      // Persist display fields to Supabase auth metadata (best-effort).
+      supabase.auth
+        .updateUser({ data: { username: updated.username, name: updated.name } })
+        .catch((err) => console.warn('updateUser metadata failed:', err));
     },
 
-    logout() {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_user');
-        wsService.disconnect();
-      }
+    async logout() {
       try {
-        supabase.auth.signOut();
+        await supabase.auth.signOut();
       } catch {
-        // ignore
+        /* ignore */
       }
-      setApiAuthToken(null);
+      if (typeof window !== 'undefined') {
+        LEGACY_KEYS.forEach((k) => localStorage.removeItem(k));
+        try {
+          wsService.disconnect();
+        } catch {
+          /* ignore */
+        }
+      }
       useNotificationsStore.getState().setSelectedChannel(null);
-      set({ user: null, token: null, error: null });
+      set({
+        user: null,
+        token: null,
+        error: null,
+        loading: false,
+        initialized: true,
+        pendingConfirmation: false,
+      });
     },
   };
 });

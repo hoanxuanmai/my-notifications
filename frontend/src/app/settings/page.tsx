@@ -4,13 +4,13 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth-store';
 import { getSupabaseConfig, supabase } from '@/lib/supabase';
-import { userMeApi } from '@/lib/api';
+import { userMeApi, deliveryApi } from '@/lib/api';
 import WebpushDevices from '@/components/settings/WebpushDevices';
 import ConfirmModal from '@/components/common/ConfirmModal';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user, logout, initAuth, updateProfile } = useAuthStore();
+  const { user, initialized, logout, initAuth, updateProfile } = useAuthStore();
   const [isMounted, setIsMounted] = useState(false);
 
   // Profile Edit State
@@ -44,6 +44,12 @@ export default function SettingsPage() {
     setIsMounted(true);
     initAuth();
   }, [initAuth]);
+
+  // Route guard: settings require an authenticated Supabase user.
+  useEffect(() => {
+    if (!isMounted || !initialized) return;
+    if (!user) router.replace('/login');
+  }, [isMounted, initialized, user, router]);
 
   useEffect(() => {
     if (user) {
@@ -116,30 +122,27 @@ export default function SettingsPage() {
     setIsSendingTest(true);
     setTestResult(null);
     try {
-      // 1. Try sending directly to Supabase table
-      const { data, error } = await supabase
-        .from('notifications')
-        .insert({
-          title: '⚡ Test Alert from Settings',
-          message: `This is a test notification generated at ${new Date().toLocaleTimeString()} to verify your real-time notification stream.`,
-          type: 'info',
-          priority: 'medium',
-          read: false,
-          metadata: { source: 'settings_test', sentAt: new Date().toISOString() },
-        })
-        .select()
-        .single();
+      // Route through the `webhooks` Edge Function so the notification is also
+      // fanned out to Web Push (webhooks -> send-webpush). Direct table inserts
+      // never trigger a push.
+      const res = await deliveryApi.trigger({
+        title: '⚡ Test Alert from Settings',
+        message: `Test notification generated at ${new Date().toLocaleTimeString()} to verify your realtime + Web Push delivery.`,
+        type: 'info',
+        priority: 'high',
+        metadata: { source: 'settings_test', sentAt: new Date().toISOString() },
+      });
 
-      if (!error && data) {
-        setTestResult('Test notification sent successfully! Check your dashboard.');
-      } else {
-        setTestResult('Sent local simulated test notification. Check your dashboard.');
-      }
+      setTestResult(
+        res.ok
+          ? 'Test alert sent. You should get a browser push within a few seconds (and see it on the dashboard).'
+          : `Failed to send test alert: ${res.error ?? 'unknown error'}`
+      );
     } catch (err: any) {
-      setTestResult('Local test notification triggered.');
+      setTestResult(`Failed to send test alert: ${err?.message ?? 'unknown error'}`);
     } finally {
       setIsSendingTest(false);
-      setTimeout(() => setTestResult(null), 5000);
+      setTimeout(() => setTestResult(null), 8000);
     }
   };
 
@@ -149,7 +152,7 @@ export default function SettingsPage() {
     router.replace('/login');
   };
 
-  if (!isMounted) {
+  if (!isMounted || !initialized || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-sm text-gray-500">Loading settings...</div>
@@ -157,12 +160,7 @@ export default function SettingsPage() {
     );
   }
 
-  const currentUser = user || {
-    id: 'usr-main-ops',
-    email: 'hoanxuanmai@gmail.com',
-    username: 'hoanxuanmai',
-    name: 'Hoan Xuan Mai',
-  };
+  const currentUser = user;
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 py-6 px-3 sm:px-6 lg:px-8">

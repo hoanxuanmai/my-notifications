@@ -7,7 +7,6 @@ import { useAuthStore } from '@/stores/auth-store';
 import { initWebPush } from '@/lib/webpush';
 import ChannelsList from '@/components/channels/ChannelsList';
 import NotificationsList from '@/components/notifications/NotificationsList';
-import LoginModal from '@/components/auth/LoginModal';
 import SmartInstallOverlay from '@/components/common/SmartInstallOverlay';
 
 function MainContent() {
@@ -15,8 +14,8 @@ function MainContent() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-  // Initialize auth-store to restore from localStorage and subscribe user
-  const { user, token, logout, initAuth } = useAuthStore();
+  // Verify the real Supabase session and subscribe the user to realtime.
+  const { user, initialized, logout, initAuth } = useAuthStore();
   const {
     fetchChannels,
     fetchNotifications,
@@ -24,32 +23,30 @@ function MainContent() {
     setSelectedChannel,
     selectedChannelId,
   } = useNotificationsStore();
-  const [showLoginModal, setShowLoginModal] = useState(false);
 
   // Avoid mismatch between server and client rendering
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Restore/verify the real Supabase session (may override the default
-  // demo user once a session or saved credentials are found).
+  // Verify the real Supabase session.
   useEffect(() => {
     if (!isMounted) return;
     initAuth();
   }, [isMounted, initAuth]);
 
+  // Route guard: only an authenticated Supabase user may see the app.
   useEffect(() => {
-    if (!isMounted) return;
+    if (!isMounted || !initialized) return;
 
-    if (!token || !user) {
-      setShowLoginModal(true);
+    if (!user) {
+      router.replace('/login');
       return;
     }
 
-    setShowLoginModal(false);
     fetchChannels();
     fetchNotifications();
-  }, [fetchChannels, fetchNotifications, isMounted, user, token]);
+  }, [fetchChannels, fetchNotifications, isMounted, initialized, user, router]);
 
   // If URL has ?channelId, auto-select that channel (when available)
   useEffect(() => {
@@ -70,20 +67,19 @@ function MainContent() {
   }, [isMounted, user, searchParams, channels, selectedChannelId, setSelectedChannel]);
 
   // Listen for global unauthorized events (401) to force logout
-  // and show the login modal instead of redirecting.
+  // and send the user back to the sign-in page.
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const handler = () => {
-      logout();
-      setShowLoginModal(true);
+      logout().finally(() => router.replace('/login'));
     };
 
     window.addEventListener('auth-unauthorized', handler);
     return () => {
       window.removeEventListener('auth-unauthorized', handler);
     };
-  }, [logout]);
+  }, [logout, router]);
 
   // Initialize Web Push after user login
   useEffect(() => {
@@ -96,9 +92,11 @@ function MainContent() {
     });
   }, [user, isMounted]);
 
-  if (!isMounted) {
+  // Wait for hydration + the session check, and don't flash the app while the
+  // guard is redirecting an unauthenticated visitor to /login.
+  if (!isMounted || !initialized || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-sm text-gray-500">Loading notifications...</div>
       </div>
     );
@@ -173,12 +171,6 @@ function MainContent() {
             </div>
           </div>
         </div>
-
-        {/* Login modal when user is not authenticated */}
-        <LoginModal
-          isOpen={showLoginModal}
-          onClose={() => setShowLoginModal(false)}
-        />
 
         {/* Mobile sidebar overlay with slide-in/out animation */}
         <div
