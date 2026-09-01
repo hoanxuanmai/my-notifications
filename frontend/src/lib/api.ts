@@ -437,7 +437,10 @@ export const pushApi = {
   subscribe: async (subscription: any): Promise<{ id: string }> => {
     try {
       const userRes = await supabase.auth.getUser();
-      const userId = userRes.data?.user?.id || 'anonymous';
+      // push_subscriptions.user_id is a UUID FK — leave it null rather than
+      // the string 'anonymous' (which Postgres rejects) when there's no
+      // real Supabase auth session.
+      const userId = userRes.data?.user?.id || null;
       const subJson = subscription?.toJSON ? subscription.toJSON() : subscription;
 
       const { data, error } = await supabase
