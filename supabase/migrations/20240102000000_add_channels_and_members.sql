@@ -466,7 +466,7 @@ CREATE OR REPLACE FUNCTION public.send_channel_notification(
   p_title VARCHAR(500),
   p_message TEXT,
   p_type VARCHAR(50) DEFAULT 'info',
-  p_priority VARCHAR(50) DEFAULT 'medium',
+  p_priority VARCHAR(50) DEFAULT 'normal',
   p_metadata JSONB DEFAULT '{}'::jsonb,
   p_ttl_days INTEGER DEFAULT 3
 )
@@ -512,7 +512,7 @@ BEGIN
     p_message,
     p_message,
     COALESCE(p_type, 'info'),
-    COALESCE(p_priority, 'medium'),
+    COALESCE(p_priority, 'normal'),
     COALESCE(p_metadata->>'category', 'system'),
     'in_app',
     false,
@@ -550,7 +550,7 @@ CREATE OR REPLACE FUNCTION public.send_notification_by_webhook(
   p_title VARCHAR(500),
   p_message TEXT,
   p_type VARCHAR(50) DEFAULT 'info',
-  p_priority VARCHAR(50) DEFAULT 'medium',
+  p_priority VARCHAR(50) DEFAULT 'normal',
   p_metadata JSONB DEFAULT '{}'::jsonb
 )
 RETURNS JSONB

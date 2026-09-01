@@ -32,7 +32,7 @@ Dự án này chứa toàn bộ mã nguồn cấu hình, migrations database, st
 - `title` (VARCHAR: Tiêu đề thông báo)
 - `message` / `content` (TEXT: Nội dung thông báo)
 - `type` (`info`, `success`, `warning`, `error`, `debug`)
-- `priority` (`low`, `medium`, `high`, `urgent`)
+- `priority` (`low`, `normal`, `high`, `urgent`)
 - `read` / `is_read` (BOOLEAN: Trạng thái đã đọc)
 - `metadata` / `payload` (JSONB: Dữ liệu tùy chỉnh kèm theo)
 - `read_at`, `expires_at`, `created_at`, `updated_at`

@@ -22,7 +22,7 @@ interface SendNotificationPayload {
   message?: string;
   content?: string;
   type?: 'info' | 'success' | 'warning' | 'error' | 'debug';
-  priority?: 'low' | 'normal' | 'medium' | 'high' | 'urgent';
+  priority?: string; // free-form; no DB constraint on allowed values
   category?: string;
   channel?: string; // delivery method: in_app, push, email, webhook, slack
   metadata?: Record<string, unknown>;
@@ -147,7 +147,7 @@ serve(async (req: Request) => {
 
     const deliveryChannel = body.channel || 'in_app';
     const notifType = body.type || 'info';
-    const priority = body.priority || 'medium';
+    const priority = body.priority || 'normal';
     const category = body.category || 'system';
     const metadata = body.metadata || body.payload || {};
     const ttlDays = body.ttlDays || 3;
