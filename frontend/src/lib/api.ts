@@ -489,8 +489,16 @@ export const userMeApi = {
 
   getSettings: async (): Promise<any> => {
     try {
-      const { data } = await supabase.from('notification_preferences').select('*').single();
-      if (data) return data;
+      const userRes = await supabase.auth.getUser();
+      const userId = userRes.data?.user?.id;
+      if (userId) {
+        const { data, error } = await supabase
+          .from('notification_preferences')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+        if (!error && data) return data;
+      }
     } catch (err) {
       console.warn('Supabase getSettings error:', err);
     }
