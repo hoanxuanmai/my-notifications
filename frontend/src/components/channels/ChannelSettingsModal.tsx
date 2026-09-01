@@ -81,11 +81,14 @@ export default function ChannelSettingsModal({
   const isOwner = !!user && channel.userId === user.id;
 
   const { url: supabaseUrl } = getSupabaseConfig();
-  const webhookUrl = `${supabaseUrl}/functions/v1/webhooks/${channel.webhookToken}`;
+  // The send-notification edge function reads webhookToken from the JSON
+  // body, not from the URL — there is no separate "/webhooks" endpoint.
+  const webhookUrl = `${supabaseUrl}/functions/v1/send-notification`;
+  const webhookSample = `POST ${webhookUrl}\nContent-Type: application/json\n\n{\n  "webhookToken": "${channel.webhookToken}",\n  "title": "Hello",\n  "message": "This is a test notification"\n}`;
 
   const handleCopyWebhook = async () => {
     try {
-      await navigator.clipboard.writeText(webhookUrl);
+      await navigator.clipboard.writeText(webhookSample);
       setCopyState('copied');
       setTimeout(() => setCopyState('idle'), 1500);
     } catch {
@@ -169,9 +172,12 @@ export default function ChannelSettingsModal({
                 onClick={handleCopyWebhook}
                 className="px-2 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200"
               >
-                {copyState === 'copied' ? 'Copied' : 'Copy'}
+                {copyState === 'copied' ? 'Copied' : 'Copy sample'}
               </button>
             </div>
+            <p className="mt-1 text-[10px] text-gray-500">
+              POST JSON with your channel token in the body — <code>{'{ "webhookToken": "'}{channel.webhookToken}{'", "title": "...", "message": "..." }'}</code>. Click &quot;Copy sample&quot; for a ready-to-use request.
+            </p>
           </div>
 
           <div>

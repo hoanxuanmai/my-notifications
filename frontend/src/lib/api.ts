@@ -238,10 +238,10 @@ export const channelsApi = {
 
   addMember: async (channelId: string, email: string): Promise<void> => {
     try {
+      // The RPC always adds members with role 'member' and doesn't take p_role
       const { error } = await supabase.rpc('add_channel_member_by_email', {
         p_channel_id: channelId,
         p_email: email,
-        p_role: 'member',
       });
       if (error) throw error;
     } catch (err) {
@@ -403,11 +403,12 @@ export const notificationsApi = {
 
   getUnreadSummary: async (): Promise<Record<string, number>> => {
     try {
-      const { data, error } = await supabase.rpc('get_unread_summary_by_channel');
-      if (!error && Array.isArray(data)) {
+      // Returns a JSONB map of { [channelId]: unreadCount }, not an array of rows
+      const { data, error } = await supabase.rpc('get_channels_unread_summary');
+      if (!error && data && typeof data === 'object') {
         const summary: Record<string, number> = {};
-        data.forEach((item: any) => {
-          summary[item.channelId] = item.unreadCount || 0;
+        Object.entries(data as Record<string, number>).forEach(([channelId, count]) => {
+          summary[channelId] = count || 0;
         });
         return summary;
       }
