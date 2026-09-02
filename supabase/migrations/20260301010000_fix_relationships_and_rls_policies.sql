@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   category VARCHAR(50) NOT NULL DEFAULT 'system',
   channel VARCHAR(30) NOT NULL DEFAULT 'in_app',
   type VARCHAR(50) NOT NULL DEFAULT 'info',
-  priority VARCHAR(50) NOT NULL DEFAULT 'normal',
+  priority VARCHAR(50) NOT NULL DEFAULT 'medium',
   read BOOLEAN NOT NULL DEFAULT false,
   is_read BOOLEAN NOT NULL DEFAULT false,
   payload JSONB NOT NULL DEFAULT '{}'::jsonb,

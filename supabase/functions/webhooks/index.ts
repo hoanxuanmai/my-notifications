@@ -22,7 +22,7 @@ interface SendNotificationPayload {
   message?: string;
   content?: string;
   type?: 'info' | 'success' | 'warning' | 'error' | 'debug';
-  priority?: string; // free-form; no DB constraint on allowed values
+  priority?: 'low' | 'normal' | 'medium' | 'high' | 'urgent';
   category?: string;
   channel?: string; // delivery method: in_app, push, email, webhook, slack
   metadata?: Record<string, unknown>;
@@ -37,6 +37,19 @@ interface SendNotificationPayload {
     role?: string;
   };
   ttlDays?: number;
+}
+
+declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void } | undefined;
+
+function runInBackground(promise: Promise<unknown>): void {
+  if (typeof EdgeRuntime !== "undefined" && typeof EdgeRuntime?.waitUntil === "function") {
+    EdgeRuntime.waitUntil(promise);
+  } else {
+    // Fire and forget without blocking event loop
+    promise.catch((err) => {
+      console.warn("[Background Task Warning]:", err);
+    });
+  }
 }
 
 function isValidUUID(str: unknown): boolean {
@@ -61,11 +74,6 @@ serve(async (req: Request) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // A webhook is intentionally open: it accepts a message from ANY source
-    // with no Supabase session. The channel webhook token (in the path / query /
-    // header / body) is the only credential; a tokenless call targets a user
-    // directly via body.user_id / recipient_id.
 
     // Extract params from URL (Path parameter or Query string)
     const reqUrl = new URL(req.url);
@@ -150,10 +158,10 @@ serve(async (req: Request) => {
 
     const targetRecipientId = body.recipientId || body.recipient_id || (targetUserId ? String(targetUserId) : null) || (targetChannelId ? `channel:${targetChannelId}` : 'broadcast');
 
-    const deliveryChannel = body.channel || 'in_app';
-    const notifType = body.type || 'info';
-    const priority = body.priority || 'normal';
-    const category = body.category || 'system';
+    const deliveryChannel = String(body.channel || 'in_app').toLowerCase();
+    const notifType = String(body.type || 'info').toLowerCase();
+    const priority = String(body.priority || 'medium').toLowerCase();
+    const category = String(body.category || 'system').toLowerCase();
     const metadata = body.metadata || body.payload || {};
     const ttlDays = body.ttlDays || 3;
     const expiresAt = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000).toISOString();
@@ -190,45 +198,42 @@ serve(async (req: Request) => {
 
     const latencyMs = Date.now() - startTime;
 
-    // 4. Telemetry: Log to delivery_logs asynchronously
-    try {
-      await supabase.from("delivery_logs").insert({
-        notification_id: notification.id,
-        channel: deliveryChannel,
-        status: "delivered",
-        latency_ms: latencyMs,
-        attempt_count: 1,
-        provider: "supabase_edge_function",
-        metadata: {
-          dispatchedVia: "edge_function_webhooks",
-          channelId: targetChannelId,
-          recipientId: targetRecipientId,
-        },
-      });
-    } catch (logErr) {
-      console.warn("Delivery log recording note:", logErr);
-    }
-
-    // 5. Fan out to Web Push (best-effort — a missing/invalid VAPID config
-    // or zero subscriptions must not fail the webhook response).
-    try {
-      const { error: pushError } = await supabase.functions.invoke("send-webpush", {
-        body: {
+    // 4. Telemetry: Log to delivery_logs asynchronously (Non-blocking / No-await)
+    runInBackground(
+      Promise.allSettled([
+        supabase.from("delivery_logs").insert({
           notification_id: notification.id,
-          user_id: isValidUUID(targetUserId) ? targetUserId : null,
-          channel_id: isValidUUID(targetChannelId) ? targetChannelId : null,
-          title,
-          message,
-          action_url: body.actionUrl || body.action_url || null,
-          payload: metadata,
-        },
-      });
-      if (pushError) {
-        console.warn("send-webpush dispatch note:", pushError);
-      }
-    } catch (pushErr) {
-      console.warn("send-webpush dispatch error:", pushErr);
-    }
+          channel: deliveryChannel,
+          status: "delivered",
+          latency_ms: latencyMs,
+          attempt_count: 1,
+          provider: "supabase_edge_function",
+          metadata: {
+            dispatchedVia: "edge_function_webhooks",
+            channelId: targetChannelId,
+            recipientId: targetRecipientId,
+          },
+        }),
+        // Optional Web Push fanout without blocking client response
+        supabase.functions.invoke("send-webpush", {
+          body: {
+            notification_id: notification.id,
+            user_id: isValidUUID(targetUserId) ? targetUserId : null,
+            channel_id: isValidUUID(targetChannelId) ? targetChannelId : null,
+            title,
+            message,
+            action_url: body.actionUrl || body.action_url || null,
+            payload: metadata,
+          },
+        }),
+      ])
+        .then(() => {
+          // background tasks finished
+        })
+        .catch((bgErr) => {
+          console.warn("[Background Tasks Warning]:", bgErr);
+        })
+    );
 
     const responseNotification = {
       ...notification,
