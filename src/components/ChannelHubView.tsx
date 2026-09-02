@@ -18,6 +18,13 @@ import {
   Info,
   Terminal,
   Activity,
+  Globe,
+  Inbox,
+  Filter,
+  Search,
+  CheckCheck,
+  BarChart3,
+  ExternalLink,
 } from 'lucide-react';
 import { AppChannel, NotificationItem } from '../types';
 import { notificationService } from '../services/notificationService';
@@ -30,7 +37,13 @@ interface ChannelHubViewProps {
 
 export const ChannelHubView: React.FC<ChannelHubViewProps> = ({ notifications = notificationService.getNotifications(), onNavigateToDispatcher }) => {
   const [channels, setChannels] = useState<AppChannel[]>(notificationService.getChannels());
-  const [selectedChannelId, setSelectedChannelId] = useState<string>(channels[0]?.id || '');
+  // 'all' represents the Global Timeline across all channels
+  const [selectedChannelId, setSelectedChannelId] = useState<string>('all');
+  
+  // Search & Filter state for global/channel view
+  const [searchQuery, setSearchQuery] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState<'all' | 'urgent' | 'high' | 'normal' | 'low'>('all');
+  const [readFilter, setReadFilter] = useState<'all' | 'unread' | 'read'>('all');
   
   // New channel modal/form state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -46,16 +59,43 @@ export const ChannelHubView: React.FC<ChannelHubViewProps> = ({ notifications = 
   // Copied indicator
   const [copiedToken, setCopiedToken] = useState(false);
   const [copiedCurl, setCopiedCurl] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
 
   // Quick message state
   const [quickMsg, setQuickMsg] = useState('');
   const [quickPriority, setQuickPriority] = useState<'normal' | 'high' | 'urgent'>('normal');
   const [isSendingQuick, setIsSendingQuick] = useState(false);
 
-  const activeChannel = channels.find((c) => c.id === selectedChannelId) || channels[0];
+  const isGlobalView = selectedChannelId === 'all';
+  const activeChannel = isGlobalView ? null : channels.find((c) => c.id === selectedChannelId) || channels[0];
 
-  const channelNotifications = notifications.filter((n) => n.channelId === activeChannel?.id);
-  const unreadInChannel = channelNotifications.filter((n) => !n.isRead).length;
+  // Filter notifications based on channel selection and filters
+  const displayedNotifications = notifications.filter((n) => {
+    // 1. Channel filter
+    if (!isGlobalView && activeChannel && n.channelId !== activeChannel.id) {
+      return false;
+    }
+    // 2. Read filter
+    if (readFilter === 'unread' && n.isRead) return false;
+    if (readFilter === 'read' && !n.isRead) return false;
+    // 3. Priority filter
+    if (priorityFilter !== 'all' && n.priority?.toLowerCase() !== priorityFilter) return false;
+    // 4. Search query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchTitle = n.title?.toLowerCase().includes(q);
+      const matchMsg = n.message?.toLowerCase().includes(q);
+      const matchChannel = n.channelName?.toLowerCase().includes(q);
+      const matchSender = n.sender?.name?.toLowerCase().includes(q);
+      if (!matchTitle && !matchMsg && !matchChannel && !matchSender) return false;
+    }
+    return true;
+  });
+
+  const totalUnreadAcrossAll = notifications.filter((n) => !n.isRead).length;
+  const unreadInActive = isGlobalView
+    ? totalUnreadAcrossAll
+    : notifications.filter((n) => n.channelId === activeChannel?.id && !n.isRead).length;
 
   const handleCreateChannel = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,15 +149,18 @@ export const ChannelHubView: React.FC<ChannelHubViewProps> = ({ notifications = 
   };
 
   const handleSendQuickNotification = async () => {
-    if (!quickMsg.trim() || !activeChannel) return;
+    if (!quickMsg.trim()) return;
+
+    const targetChannel = activeChannel || channels[0];
+    if (!targetChannel) return;
 
     setIsSendingQuick(true);
     try {
       await notificationService.dispatchNotification({
-        title: `${activeChannel.name} Alert`,
+        title: `${targetChannel.name} Alert`,
         message: quickMsg.trim(),
-        channelId: activeChannel.id,
-        channelName: activeChannel.name,
+        channelId: targetChannel.id,
+        channelName: targetChannel.name,
         type: 'system',
         channel: 'in_app',
         priority: quickPriority,
@@ -133,13 +176,14 @@ export const ChannelHubView: React.FC<ChannelHubViewProps> = ({ notifications = 
     }
   };
 
-  const handleMarkChannelRead = async () => {
-    if (!activeChannel) return;
-    await notificationService.markAllAsRead(activeChannel.id);
+  const handleMarkAllRead = async () => {
+    if (isGlobalView) {
+      await notificationService.markAllAsRead();
+    } else if (activeChannel) {
+      await notificationService.markAllAsRead(activeChannel.id);
+    }
     setChannels(notificationService.getChannels());
   };
-
-  const [copiedUrl, setCopiedUrl] = useState(false);
 
   const supabaseUrl = notificationService.getSupabaseConfig()?.url || '';
   const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -191,25 +235,36 @@ curl -X POST ${supabaseEdgeWebhookUrl} \\
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div>
-            <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
                 <Hash className="h-3 w-3 text-indigo-400" />
-                Supabase Channel Engine (NestJS Replacement)
+                Supabase Channel Engine
               </span>
               <span className="text-xs text-emerald-400 font-mono flex items-center gap-1">
                 <Radio className="h-2.5 w-2.5 animate-pulse" />
-                RLS Multi-Member Isolated
+                Realtime Stream & Multi-Channel Feed
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-              Kênh Thông Báo & Thành Viên (Channels Hub)
+              Kênh Thông Báo & Tin Nhắn Tổng Thể (Channels & Global Feed)
             </h1>
             <p className="text-sm text-slate-400 mt-1 max-w-2xl">
-              Quản lý channels, phân quyền thành viên theo email, tạo Webhook Token và dispatch thông báo thời gian thực thay thế hoàn toàn NestJS WebSocket Gateway.
+              Xem toàn bộ thông báo hệ thống tổng thể (Global Stream) hoặc lọc theo từng Channel riêng lẻ với phân quyền RLS và Webhook Token.
             </p>
           </div>
 
           <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setSelectedChannelId('all')}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition ${
+                isGlobalView
+                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                  : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-300'
+              }`}
+            >
+              <Globe className="h-4 w-4 text-emerald-400" />
+              <span>Xem Tổng Thể ({notifications.length})</span>
+            </button>
             <button
               onClick={() => setShowCreateModal(true)}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition shadow-lg shadow-indigo-600/20 active:scale-95"
@@ -221,16 +276,16 @@ curl -X POST ${supabaseEdgeWebhookUrl} \\
         </div>
       </div>
 
-      {/* Main Grid: Channels Sidebar + Active Channel View */}
+      {/* Main Grid: Channels Sidebar + Active Channel View / Global Feed */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* Left Col: Channel List */}
+        {/* Left Col: Channel List + Global View Option */}
         <div className="lg:col-span-4 space-y-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
             <div className="flex items-center justify-between mb-3 px-1">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Hash className="h-3.5 w-3.5 text-indigo-400" />
-                Danh Sách Channels ({channels.length})
+                <Layers className="h-3.5 w-3.5 text-indigo-400" />
+                Danh Mục Kênh & Tổng Quan
               </span>
               <button
                 onClick={() => setShowCreateModal(true)}
@@ -243,6 +298,55 @@ curl -X POST ${supabaseEdgeWebhookUrl} \\
             </div>
 
             <div className="space-y-2">
+              {/* GLOBAL ALL CHANNELS ITEM */}
+              <button
+                onClick={() => setSelectedChannelId('all')}
+                className={`w-full text-left p-3.5 rounded-xl border transition flex items-start justify-between gap-3 ${
+                  isGlobalView
+                    ? 'bg-emerald-950/40 border-emerald-500/50 shadow-md shadow-emerald-950/50 ring-1 ring-emerald-500/20'
+                    : 'bg-slate-950/60 border-slate-800/80 hover:bg-slate-800/50 hover:border-slate-700 text-slate-300'
+                }`}
+              >
+                <div className="flex items-start gap-2.5 min-w-0">
+                  <div
+                    className={`p-2 rounded-lg mt-0.5 ${
+                      isGlobalView ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'
+                    }`}
+                  >
+                    <Globe className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-bold truncate ${isGlobalView ? 'text-white' : 'text-slate-200'}`}>
+                        🌐 Tất Cả Kênh (Toàn Bộ Tin Nhắn)
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 truncate mt-0.5">
+                      Dòng thời gian tổng thể từ tất cả {channels.length} kênh
+                    </p>
+                    <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-500">
+                      <span className="flex items-center gap-1 text-emerald-400/90 font-medium">
+                        <Activity className="h-3 w-3" />
+                        {channels.length} channels active
+                      </span>
+                      <span>•</span>
+                      <span>{notifications.length} tổng tin nhắn</span>
+                    </div>
+                  </div>
+                </div>
+
+                {totalUnreadAcrossAll > 0 && (
+                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500 text-slate-950">
+                    {totalUnreadAcrossAll} mới
+                  </span>
+                )}
+              </button>
+
+              <div className="pt-2 pb-1 px-1 flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider border-t border-slate-800/80">
+                <span>Kênh Riêng Biệt ({channels.length})</span>
+              </div>
+
+              {/* INDIVIDUAL CHANNELS */}
               {channels.map((ch) => {
                 const isSelected = ch.id === selectedChannelId;
                 const notifCount = notifications.filter((n) => n.channelId === ch.id).length;
@@ -254,7 +358,7 @@ curl -X POST ${supabaseEdgeWebhookUrl} \\
                     onClick={() => setSelectedChannelId(ch.id)}
                     className={`w-full text-left p-3.5 rounded-xl border transition flex items-start justify-between gap-3 ${
                       isSelected
-                        ? 'bg-indigo-950/40 border-indigo-500/50 shadow-md shadow-indigo-950/50'
+                        ? 'bg-indigo-950/40 border-indigo-500/50 shadow-md shadow-indigo-950/50 ring-1 ring-indigo-500/20'
                         : 'bg-slate-950/60 border-slate-800/80 hover:bg-slate-800/50 hover:border-slate-700 text-slate-300'
                     }`}
                   >
@@ -316,11 +420,112 @@ curl -X POST ${supabaseEdgeWebhookUrl} \\
           </div>
         </div>
 
-        {/* Right Col: Active Channel Workspace */}
-        {activeChannel ? (
-          <div className="lg:col-span-8 space-y-6">
-            
-            {/* Channel Details Card */}
+        {/* Right Col: Workspace (Global Feed or Single Channel View) */}
+        <div className="lg:col-span-8 space-y-6">
+          
+          {/* VIEW HEADER & SUMMARY STATS */}
+          {isGlobalView ? (
+            /* GLOBAL OVERVIEW DASHBOARD CARD */
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <Globe className="h-5 w-5 text-emerald-400" />
+                      <span>Tổng Hợp Tin Nhắn Hệ Thống (Global Feed)</span>
+                    </h2>
+                    <span className="px-2.5 py-0.5 text-[10px] font-semibold rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                      Tất Cả Kênh
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Theo dõi toàn bộ thông báo gửi từ webhook, cronjob và người dùng trên mọi channels trong thời gian thực.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={handleMarkAllRead}
+                    disabled={unreadInActive === 0}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition disabled:opacity-50"
+                  >
+                    <CheckCheck className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>Đọc tất cả ({unreadInActive})</span>
+                  </button>
+                  <button
+                    onClick={() => onNavigateToDispatcher()}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition shadow-sm"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    <span>Mở Dispatcher Lab</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Metrics Bento */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800/80">
+                  <span className="text-[11px] text-slate-400 font-medium block">Tổng tin nhắn</span>
+                  <span className="text-lg font-bold text-white">{notifications.length}</span>
+                </div>
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800/80">
+                  <span className="text-[11px] text-slate-400 font-medium block">Chưa đọc</span>
+                  <span className="text-lg font-bold text-emerald-400">{totalUnreadAcrossAll}</span>
+                </div>
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800/80">
+                  <span className="text-[11px] text-slate-400 font-medium block">Số kênh kích hoạt</span>
+                  <span className="text-lg font-bold text-indigo-400">{channels.length}</span>
+                </div>
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800/80">
+                  <span className="text-[11px] text-slate-400 font-medium block">Mức khẩn cấp</span>
+                  <span className="text-lg font-bold text-rose-400">
+                    {notifications.filter((n) => n.priority === 'urgent' || n.priority === 'high').length}
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick Send Message Box across default channel */}
+              <div className="space-y-3 pt-1">
+                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Send className="h-3.5 w-3.5 text-emerald-400" />
+                  Phát Nhanh Thông Báo Toàn Cục
+                </span>
+                
+                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={quickMsg}
+                      onChange={(e) => setQuickMsg(e.target.value)}
+                      placeholder={`Nhập thông điệp thông báo gửi đến channel "${channels[0]?.name || 'Chính'}"...`}
+                      className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSendQuickNotification();
+                      }}
+                    />
+                    <select
+                      value={quickPriority}
+                      onChange={(e) => setQuickPriority(e.target.value as any)}
+                      className="px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-300 focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value="normal">Normal</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                    <button
+                      onClick={handleSendQuickNotification}
+                      disabled={isSendingQuick || !quickMsg.trim()}
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold transition disabled:opacity-50"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      <span>{isSendingQuick ? 'Đang gửi...' : 'Gửi Ngay'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : activeChannel ? (
+            /* SINGLE CHANNEL SETTINGS CARD */
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
                 <div>
@@ -340,12 +545,12 @@ curl -X POST ${supabaseEdgeWebhookUrl} \\
 
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
-                    onClick={handleMarkChannelRead}
-                    disabled={unreadInChannel === 0}
+                    onClick={handleMarkAllRead}
+                    disabled={unreadInActive === 0}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition disabled:opacity-50"
                   >
                     <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />
-                    <span>Đọc tất cả ({unreadInChannel})</span>
+                    <span>Đọc tất cả ({unreadInActive})</span>
                   </button>
                   <button
                     onClick={() => onNavigateToDispatcher(activeChannel.id)}
@@ -459,7 +664,7 @@ curl -X POST ${supabaseEdgeWebhookUrl} \\
                 </div>
               </div>
 
-              {/* Quick Send Message Box */}
+              {/* Quick Send Message Box for specific channel */}
               <div className="space-y-3 pt-2">
                 <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                   <Send className="h-3.5 w-3.5 text-indigo-400" />
@@ -467,7 +672,7 @@ curl -X POST ${supabaseEdgeWebhookUrl} \\
                 </span>
                 
                 <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <input
                       type="text"
                       value={quickMsg}
@@ -490,7 +695,7 @@ curl -X POST ${supabaseEdgeWebhookUrl} \\
                     <button
                       onClick={handleSendQuickNotification}
                       disabled={isSendingQuick || !quickMsg.trim()}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition disabled:opacity-50"
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition disabled:opacity-50"
                     >
                       <Send className="h-3.5 w-3.5" />
                       <span>{isSendingQuick ? 'Đang gửi...' : 'Gửi Ngay'}</span>
@@ -520,88 +725,136 @@ curl -X POST ${supabaseEdgeWebhookUrl} \\
               </div>
 
             </div>
+          ) : null}
 
-            {/* Channel Messages Timeline */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                  <Activity className="h-3.5 w-3.5 text-emerald-400" />
-                  Live Realtime Feed ({channelNotifications.length} items)
-                </span>
-                <span className="text-xs text-slate-500 font-mono">
-                  Channel: {activeChannel.name}
-                </span>
+          {/* REALTIME FEED TIMELINE (Works for both Global View & Single Channel) */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Activity className="h-3.5 w-3.5 text-emerald-400" />
+                {isGlobalView ? 'Toàn Bộ Dòng Thông Báo Hệ Thống' : `Live Realtime Feed — ${activeChannel?.name}`} ({displayedNotifications.length} tin)
+              </span>
+
+              {/* Filter controls */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="relative">
+                  <Search className="h-3.5 w-3.5 text-slate-500 absolute left-2.5 top-2.5" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Tìm theo tiêu đề, kênh, nội dung..."
+                    className="pl-8 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 w-48 sm:w-56"
+                  />
+                </div>
+
+                <select
+                  value={readFilter}
+                  onChange={(e) => setReadFilter(e.target.value as any)}
+                  className="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-300 focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="all">Tất cả trạng thái</option>
+                  <option value="unread">Chỉ chưa đọc</option>
+                  <option value="read">Đã đọc</option>
+                </select>
+
+                <select
+                  value={priorityFilter}
+                  onChange={(e) => setPriorityFilter(e.target.value as any)}
+                  className="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-300 focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="all">Mọi độ ưu tiên</option>
+                  <option value="urgent">Urgent</option>
+                  <option value="high">High</option>
+                  <option value="normal">Normal</option>
+                  <option value="low">Low</option>
+                </select>
               </div>
-
-              {channelNotifications.length === 0 ? (
-                <div className="py-12 text-center text-slate-500 text-xs">
-                  Chưa có thông báo nào trong channel này. Hãy thử gửi thông báo ở ô phía trên!
-                </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {channelNotifications.map((n) => (
-                    <div
-                      key={n.id}
-                      className={`p-3.5 rounded-xl border transition flex items-start justify-between gap-3 ${
-                        n.isRead
-                          ? 'bg-slate-950/60 border-slate-800/80 text-slate-400'
-                          : 'bg-slate-950 border-slate-700/80 text-white shadow-sm'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div
-                          className={`p-2 rounded-lg mt-0.5 ${
-                            n.priority === 'urgent'
-                              ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
-                              : n.priority === 'high'
-                              ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                              : 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
-                          }`}
-                        >
-                          <Bell className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-bold text-white">{n.title}</span>
-                            <span
-                              className={`px-2 py-0.5 text-[10px] font-bold rounded uppercase ${
-                                n.priority === 'urgent'
-                                  ? 'bg-rose-500/20 text-rose-300'
-                                  : n.priority === 'high'
-                                  ? 'bg-amber-500/20 text-amber-300'
-                                  : 'bg-slate-800 text-slate-400'
-                              }`}
-                            >
-                              {n.priority}
-                            </span>
-                            {!n.isRead && (
-                              <span className="h-2 w-2 rounded-full bg-emerald-400" title="Unread" />
-                            )}
-                          </div>
-                          <p className="text-xs text-slate-300 mt-1">{n.message}</p>
-                          <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-500">
-                            <span>From: <strong className="text-slate-400">{n.sender?.name || 'Hub'}</strong></span>
-                            <span>•</span>
-                            <span>{new Date(n.createdAt).toLocaleTimeString()}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => notificationService.toggleRead(n.id)}
-                        className="p-1 text-slate-500 hover:text-emerald-400 transition"
-                        title={n.isRead ? 'Đánh dấu chưa đọc' : 'Đánh dấu đã đọc'}
-                      >
-                        <CheckCircle className={`h-4 w-4 ${n.isRead ? 'text-emerald-500' : ''}`} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
 
+            {displayedNotifications.length === 0 ? (
+              <div className="py-12 text-center text-slate-500 text-xs">
+                Không tìm thấy thông báo nào phù hợp với bộ lọc hiện tại.
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {displayedNotifications.map((n) => (
+                  <div
+                    key={n.id}
+                    className={`p-3.5 rounded-xl border transition flex items-start justify-between gap-3 ${
+                      n.isRead
+                        ? 'bg-slate-950/60 border-slate-800/80 text-slate-400'
+                        : 'bg-slate-950 border-slate-700/80 text-white shadow-sm'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div
+                        className={`p-2 rounded-lg mt-0.5 shrink-0 ${
+                          n.priority === 'urgent'
+                            ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                            : n.priority === 'high'
+                            ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                            : 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
+                        }`}
+                      >
+                        <Bell className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-bold text-white">{n.title}</span>
+                          
+                          {/* Channel Badge (clickable to jump to channel) */}
+                          {n.channelName && (
+                            <button
+                              onClick={() => {
+                                if (n.channelId) setSelectedChannelId(n.channelId);
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded bg-slate-800 hover:bg-indigo-950/80 hover:text-indigo-300 text-slate-300 border border-slate-700 transition"
+                              title="Bấm để chuyển đến kênh này"
+                            >
+                              <Hash className="h-2.5 w-2.5 text-indigo-400" />
+                              <span>{n.channelName}</span>
+                            </button>
+                          )}
+
+                          <span
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded uppercase ${
+                              n.priority === 'urgent'
+                                ? 'bg-rose-500/20 text-rose-300'
+                                : n.priority === 'high'
+                                ? 'bg-amber-500/20 text-amber-300'
+                                : 'bg-slate-800 text-slate-400'
+                            }`}
+                          >
+                            {n.priority}
+                          </span>
+                          {!n.isRead && (
+                            <span className="h-2 w-2 rounded-full bg-emerald-400" title="Chưa đọc" />
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-300 mt-1 break-words">{n.message}</p>
+                        <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-500 flex-wrap">
+                          <span>From: <strong className="text-slate-400">{n.sender?.name || 'System Hub'}</strong></span>
+                          <span>•</span>
+                          <span>{new Date(n.createdAt).toLocaleTimeString()} ({new Date(n.createdAt).toLocaleDateString()})</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => notificationService.toggleRead(n.id)}
+                      className="p-1.5 text-slate-500 hover:text-emerald-400 transition shrink-0"
+                      title={n.isRead ? 'Đánh dấu chưa đọc' : 'Đánh dấu đã đọc'}
+                    >
+                      <CheckCircle className={`h-4 w-4 ${n.isRead ? 'text-emerald-500' : ''}`} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        ) : null}
+
+        </div>
 
       </div>
 
@@ -678,3 +931,4 @@ curl -X POST ${supabaseEdgeWebhookUrl} \\
     </div>
   );
 };
+
