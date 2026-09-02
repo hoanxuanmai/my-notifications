@@ -43,6 +43,10 @@ export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
     }
   };
 
+  const totalUnreadAcrossAll = useMemo(() => {
+    return Object.values(unreadByChannelId).reduce((sum, count) => sum + (count || 0), 0);
+  }, [unreadByChannelId]);
+
   const sortedChannels = useMemo(() => {
     return [...channels]
       .map((channel) => {
@@ -126,6 +130,42 @@ export default function ChannelsList({ onChannelSelected }: ChannelsListProps) {
            <div className="py-2 text-sm text-gray-500 dark:text-gray-400 flex-1 overflow-y-auto">Loading channels...</div>
       ) : (
            <div className="space-y-2 flex-1 min-h-0 overflow-y-auto overscroll-contain -mx-1 px-1">
+        {/* All Channels / Global Feed Item */}
+        <div
+          onClick={() => {
+            setSelectedChannel(null);
+            const params = new URLSearchParams(searchParams.toString());
+            params.delete('channelId');
+            const newUrl = params.toString() ? '?' + params.toString() : window.location.pathname;
+            router.replace(newUrl, { scroll: false });
+            onChannelSelected?.();
+          }}
+          className={`p-3 rounded-lg cursor-pointer border transition ${
+            selectedChannelId === null
+              ? 'bg-blue-50 border-blue-300 dark:bg-blue-950/50 dark:border-blue-700'
+              : 'bg-white border-gray-200 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700/60'
+          }`}
+        >
+          <div className="flex justify-between items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <h3 className="font-medium text-gray-800 dark:text-gray-100 text-sm sm:text-base flex items-center gap-1.5">
+                <span>🌐 All Channels</span>
+              </h3>
+              <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                View all notifications across all groups
+              </p>
+              {totalUnreadAcrossAll > 0 && (
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
+                  {totalUnreadAcrossAll} unread
+                </p>
+              )}
+            </div>
+            {selectedChannelId === null && (
+              <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+            )}
+          </div>
+        </div>
+
         {sortedChannels.map(({ channel, lastNotification }) => {
           const unreadCount = unreadByChannelId[channel.id] ?? 0;
 
