@@ -32,7 +32,12 @@ export default function SettingsPage() {
 
   // Test Notification State
   const [isSendingTest, setIsSendingTest] = useState(false);
-  const [testResult, setTestResult] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{
+    ok: boolean;
+    message: string;
+    latencyMs?: number;
+    id?: string;
+  } | null>(null);
 
   // Sign out modal
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -133,16 +138,27 @@ export default function SettingsPage() {
         metadata: { source: 'settings_test', sentAt: new Date().toISOString() },
       });
 
-      setTestResult(
-        res.ok
-          ? 'Test alert sent. You should get a browser push within a few seconds (and see it on the dashboard).'
-          : `Failed to send test alert: ${res.error ?? 'unknown error'}`
-      );
+      if (res.ok) {
+        setTestResult({
+          ok: true,
+          message: 'Test alert created successfully! Realtime UI updated and Web Push fanned out.',
+          latencyMs: res.latencyMs,
+          id: res.id,
+        });
+      } else {
+        setTestResult({
+          ok: false,
+          message: res.error ?? 'Failed to send test alert',
+        });
+      }
     } catch (err: any) {
-      setTestResult(`Failed to send test alert: ${err?.message ?? 'unknown error'}`);
+      setTestResult({
+        ok: false,
+        message: err?.message ?? 'Failed to send test alert',
+      });
     } finally {
       setIsSendingTest(false);
-      setTimeout(() => setTestResult(null), 8000);
+      setTimeout(() => setTestResult(null), 10000);
     }
   };
 
@@ -419,8 +435,31 @@ export default function SettingsPage() {
           </div>
 
           {testResult && (
-            <div className="mt-3 p-2.5 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
-              {testResult}
+            <div
+              className={`mt-3 p-3 rounded-lg border text-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 transition-all ${
+                testResult.ok
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                  : 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span>{testResult.ok ? '✅' : '❌'}</span>
+                <span>{testResult.message}</span>
+              </div>
+              {testResult.ok && (
+                <div className="flex items-center gap-2 flex-shrink-0 self-start sm:self-auto">
+                  {typeof testResult.latencyMs === 'number' && (
+                    <span className="px-2 py-0.5 rounded-full font-mono text-[11px] font-semibold bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700">
+                      ⚡ {testResult.latencyMs}ms
+                    </span>
+                  )}
+                  {testResult.id && (
+                    <span className="px-2 py-0.5 rounded-full font-mono text-[11px] text-gray-600 dark:text-gray-300 bg-white/80 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700">
+                      ID: {testResult.id.slice(0, 8)}...
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </section>

@@ -473,6 +473,15 @@ export const pushApi = {
 // Notification delivery — always routed through the `webhooks` Edge Function
 // so the same code path also fans the notification out to Web Push
 // (webhooks -> send-webpush). Never insert into `notifications` directly.
+export interface DeliveryTriggerResult {
+  ok: boolean;
+  id?: string;
+  channelId?: string | null;
+  latencyMs?: number;
+  createdAt?: string;
+  error?: string;
+}
+
 export const deliveryApi = {
   trigger: async (payload: {
     title: string;
@@ -481,7 +490,7 @@ export const deliveryApi = {
     priority?: string;
     channelToken?: string;
     metadata?: Record<string, unknown>;
-  }): Promise<{ ok: boolean; error?: string }> => {
+  }): Promise<DeliveryTriggerResult> => {
     const { url } = getSupabaseConfig();
     const { data: sessionRes } = await supabase.auth.getSession();
     const session = sessionRes.session;
@@ -503,15 +512,24 @@ export const deliveryApi = {
           title: payload.title,
           message: payload.message,
           type: payload.type ?? 'info',
-          priority: payload.priority ?? 'normal',
+          priority: payload.priority ?? 'medium',
           user_id: session.user.id,
           metadata: payload.metadata ?? {},
         }),
       });
+
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        return { ok: false, error: `Webhook responded ${res.status}` };
+        return { ok: false, error: data?.error || `Webhook responded ${res.status}` };
       }
-      return { ok: true };
+
+      return {
+        ok: true,
+        id: data?.id || data?.notification?.id,
+        channelId: data?.channelId,
+        latencyMs: data?.latencyMs,
+        createdAt: data?.createdAt || data?.notification?.created_at,
+      };
     } catch (err: any) {
       return { ok: false, error: err?.message || 'Request failed' };
     }

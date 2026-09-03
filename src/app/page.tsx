@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useNotificationsStore } from '@/stores/notifications-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { initWebPush } from '@/lib/webpush';
+import { wsService, type RealtimeStatus } from '@/lib/websocket';
 import ChannelsList from '@/components/channels/ChannelsList';
 import NotificationsList from '@/components/notifications/NotificationsList';
 import SmartInstallOverlay from '@/components/common/SmartInstallOverlay';
@@ -23,11 +24,25 @@ function MainContent() {
     setSelectedChannel,
     selectedChannelId,
   } = useNotificationsStore();
+  const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('DISCONNECTED');
 
   // Avoid mismatch between server and client rendering
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Track real-time connection status
+  useEffect(() => {
+    if (!isMounted) return;
+    setRealtimeStatus(wsService.getStatus());
+    const handleStatusChange = (status: RealtimeStatus) => {
+      setRealtimeStatus(status);
+    };
+    wsService.on('status:change', handleStatusChange);
+    return () => {
+      wsService.off('status:change', handleStatusChange);
+    };
+  }, [isMounted]);
 
   // Verify the real Supabase session.
   useEffect(() => {
@@ -128,6 +143,37 @@ function MainContent() {
               <span className="hidden sm:inline ml-1 text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 font-medium">
                 Supabase
               </span>
+
+              {/* Realtime Status Indicator */}
+              {realtimeStatus === 'CONNECTED' ? (
+                <div
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-850 shadow-2xs"
+                  title="Supabase Realtime WebSocket đã kết nối và đang nhận thông báo trực tiếp"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="hidden sm:inline">Realtime Live</span>
+                  <span className="sm:hidden">Live</span>
+                </div>
+              ) : realtimeStatus === 'CONNECTING' ? (
+                <div
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+                  title="Đang thiết lập kết nối WebSocket tới Supabase Realtime"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  <span className="hidden sm:inline">Connecting...</span>
+                  <span className="sm:hidden">Syncing</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => wsService.connect()}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 dark:bg-gray-850 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  title="Realtime ngắt kết nối. Bấm để kết nối lại."
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                  <span>Offline</span>
+                </button>
+              )}
             </div>
 
             {/* Right: user */}

@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import type { Channel, ChannelTemplate } from '@/types';
-import { channelsApi } from '@/lib/api';
+import { channelsApi, deliveryApi } from '@/lib/api';
 import { getSupabaseConfig } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth-store';
 import { useNotificationsStore } from '@/stores/notifications-store';
@@ -33,6 +33,15 @@ export default function ChannelSettingsModal({
   const [error, setError] = useState<string | null>(null);
   const [newUserEmail, setNewUserEmail] = useState('');
   const [copyState, setCopyState] = useState<'idle' | 'copied'>('idle');
+  const [copyCurlState, setCopyCurlState] = useState<'idle' | 'copied'>('idle');
+  const [activeWebhookTab, setActiveWebhookTab] = useState<'url' | 'curl'>('url');
+  const [isTestingWebhook, setIsTestingWebhook] = useState(false);
+  const [testWebhookResult, setTestWebhookResult] = useState<{
+    ok: boolean;
+    message: string;
+    latencyMs?: number;
+    id?: string;
+  } | null>(null);
   const [template, setTemplate] = useState<ChannelTemplate>(channel?.settings?.template || 'default');
 
   // Always sync template state with channel when modal opens or channel changes
@@ -93,6 +102,57 @@ export default function ChannelSettingsModal({
       setTimeout(() => setCopyState('idle'), 1500);
     } catch {
       // ignore clipboard errors
+    }
+  };
+
+  const curlCommand = `curl -X POST "${webhookUrl}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"title": "Alert", "message": "Notification to #${channel.name}", "type": "info", "priority": "high"}'`;
+
+  const handleCopyCurl = async () => {
+    try {
+      await navigator.clipboard.writeText(curlCommand);
+      setCopyCurlState('copied');
+      setTimeout(() => setCopyCurlState('idle'), 1500);
+    } catch {
+      // ignore clipboard errors
+    }
+  };
+
+  const handleTestWebhook = async () => {
+    setIsTestingWebhook(true);
+    setTestWebhookResult(null);
+    try {
+      const res = await deliveryApi.trigger({
+        channelToken: channel.webhookToken,
+        title: `⚡ Test Alert to #${channel.name}`,
+        message: `Webhook trigger test successfully sent at ${new Date().toLocaleTimeString()}.`,
+        type: 'info',
+        priority: 'high',
+        metadata: { source: 'channel_modal_test', channelId: channel.id },
+      });
+
+      if (res.ok) {
+        setTestWebhookResult({
+          ok: true,
+          message: 'Sự kiện đã được tạo thành công!',
+          latencyMs: res.latencyMs,
+          id: res.id,
+        });
+      } else {
+        setTestWebhookResult({
+          ok: false,
+          message: res.error || 'Gửi test webhook thất bại',
+        });
+      }
+    } catch (e: any) {
+      setTestWebhookResult({
+        ok: false,
+        message: e?.message || 'Gửi test webhook thất bại',
+      });
+    } finally {
+      setIsTestingWebhook(false);
+      setTimeout(() => setTestWebhookResult(null), 8000);
     }
   };
 
@@ -159,25 +219,121 @@ export default function ChannelSettingsModal({
             </select>
             {savingTemplate && <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">Saving…</span>}
           </div>
-          <div>
-            <h3 className="text-sm font-medium mb-1">Webhook URL</h3>
-            <div className="flex items-center gap-2">
-              <input
-                readOnly
-                value={webhookUrl}
-                className="flex-1 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-xs bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-200"
-              />
+          {/* Webhook Configuration & Testing */}
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50/70 dark:bg-gray-900/50">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5">
+                <h3 className="text-sm font-semibold">Webhook Ingestion</h3>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                  ⚡ Fast-path
+                </span>
+              </div>
+
+              {/* Sub-tabs: URL / cURL */}
+              <div className="flex items-center gap-1 bg-gray-200/80 dark:bg-gray-800 p-0.5 rounded text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setActiveWebhookTab('url')}
+                  className={`px-2 py-0.5 rounded font-medium transition-colors ${
+                    activeWebhookTab === 'url'
+                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-xs'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                  }`}
+                >
+                  URL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveWebhookTab('curl')}
+                  className={`px-2 py-0.5 rounded font-medium transition-colors ${
+                    activeWebhookTab === 'curl'
+                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-xs'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                  }`}
+                >
+                  cURL
+                </button>
+              </div>
+            </div>
+
+            {activeWebhookTab === 'url' ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <input
+                    readOnly
+                    value={webhookUrl}
+                    className="flex-1 border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-xs bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-mono select-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCopyWebhook}
+                    className="px-3 py-1.5 text-xs font-medium bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded transition-colors"
+                  >
+                    {copyState === 'copied' ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <div className="relative">
+                  <pre className="p-2 text-[11px] font-mono rounded bg-gray-900 text-gray-100 dark:bg-black/70 overflow-x-auto whitespace-pre leading-relaxed border border-gray-800">
+                    {curlCommand}
+                  </pre>
+                  <button
+                    type="button"
+                    onClick={handleCopyCurl}
+                    className="absolute top-2 right-2 px-2 py-1 text-[11px] font-medium bg-gray-700 hover:bg-gray-600 text-white rounded shadow-sm"
+                  >
+                    {copyCurlState === 'copied' ? 'Copied' : 'Copy cURL'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Quick Test Webhook Button & Live Latency Indicator */}
+            <div className="mt-3 pt-2.5 border-t border-gray-200 dark:border-gray-700/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <button
                 type="button"
-                onClick={handleCopyWebhook}
-                className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+                onClick={handleTestWebhook}
+                disabled={isTestingWebhook}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 transition-colors shadow-xs"
               >
-                {copyState === 'copied' ? 'Copied' : 'Copy'}
+                {isTestingWebhook ? (
+                  <>
+                    <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Đang gửi test...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>⚡ Gửi thông báo thử (Quick Test)</span>
+                  </>
+                )}
               </button>
+
+              <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                Thêm <code>?full=true</code> nếu cần toàn bộ schema object.
+              </span>
             </div>
-            <p className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
-              POST JSON with a <code>title</code> and <code>message</code> to this URL to create a notification in this channel.
-            </p>
+
+            {testWebhookResult && (
+              <div
+                className={`mt-2 p-2 rounded text-xs flex items-center justify-between gap-2 transition-all ${
+                  testWebhookResult.ok
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                    : 'bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 truncate">
+                  <span>{testWebhookResult.ok ? '✅' : '❌'}</span>
+                  <span className="truncate">{testWebhookResult.message}</span>
+                </div>
+                {testWebhookResult.ok && typeof testWebhookResult.latencyMs === 'number' && (
+                  <span className="px-1.5 py-0.5 rounded font-mono text-[10px] font-bold bg-emerald-200/70 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-100 flex-shrink-0">
+                    ⚡ {testWebhookResult.latencyMs}ms
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
