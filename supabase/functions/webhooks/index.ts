@@ -1,11 +1,11 @@
 // Supabase Edge Function: webhooks
-// Handles incoming Webhook triggers (path-based /webhooks/:token, query token, or body payload)
+// High-performance, low-latency webhook ingestion for notification events
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-channel-token, x-webhook-token, x-token, x-return-full",
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
 };
 
@@ -22,7 +22,7 @@ interface SendNotificationPayload {
   message?: string;
   content?: string;
   type?: 'info' | 'success' | 'warning' | 'error' | 'debug';
-  priority?: 'low' | 'normal' | 'medium' | 'high' | 'urgent';
+  priority?: 'low' | 'normal' | 'medium' | 'high' | 'urgent' | string;
   category?: string;
   channel?: string; // delivery method: in_app, push, email, webhook, slack
   metadata?: Record<string, unknown>;
@@ -57,6 +57,15 @@ function isValidUUID(str: unknown): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 }
 
+// In-memory cache for channel resolution (valid for 5 minutes per Edge Function worker)
+interface CachedChannel {
+  id: string;
+  userId: string | null;
+  expiresAtMs: number;
+}
+const channelCache = new Map<string, CachedChannel>();
+const CHANNEL_CACHE_TTL_MS = 5 * 60 * 1000;
+
 serve(async (req: Request) => {
   const startTime = Date.now();
 
@@ -78,16 +87,40 @@ serve(async (req: Request) => {
     // Extract params from URL (Path parameter or Query string)
     const reqUrl = new URL(req.url);
     const pathParts = reqUrl.pathname.split("/").filter(Boolean);
-    // e.g. /functions/v1/webhooks/5a8065efaf6e78a9f2fddd71ae55e163
+    // e.g. /functions/v1/webhooks/:token
     const lastPathSegment = pathParts[pathParts.length - 1];
-    const pathToken = lastPathSegment && lastPathSegment !== "webhooks" && lastPathSegment !== "send-notification" && lastPathSegment !== "v1" ? lastPathSegment : null;
+    const pathToken =
+      lastPathSegment &&
+      lastPathSegment !== "webhooks" &&
+      lastPathSegment !== "send-notification" &&
+      lastPathSegment !== "v1"
+        ? lastPathSegment
+        : null;
 
-    const queryToken = reqUrl.searchParams.get("token") || reqUrl.searchParams.get("webhookToken") || reqUrl.searchParams.get("webhook_token");
-    const queryChannelId = reqUrl.searchParams.get("channel_id") || reqUrl.searchParams.get("channelId") || reqUrl.searchParams.get("id");
-    const headerToken = req.headers.get("x-channel-token") || req.headers.get("x-webhook-token") || req.headers.get("x-token");
+    const queryToken =
+      reqUrl.searchParams.get("token") ||
+      reqUrl.searchParams.get("webhookToken") ||
+      reqUrl.searchParams.get("webhook_token");
+    const queryChannelId =
+      reqUrl.searchParams.get("channel_id") ||
+      reqUrl.searchParams.get("channelId") ||
+      reqUrl.searchParams.get("id");
+    const headerToken =
+      req.headers.get("x-channel-token") ||
+      req.headers.get("x-webhook-token") ||
+      req.headers.get("x-token");
+
+    // Check if client explicitly requests full data payload (default is false for maximum performance)
+    const wantFullData =
+      reqUrl.searchParams.get("full") === "true" ||
+      reqUrl.searchParams.get("include_data") === "true" ||
+      req.headers.get("x-return-full") === "true";
 
     // Parse request body
-    const body: SendNotificationPayload = await req.json().catch(() => ({ title: "Webhook Alert", message: "Incoming webhook trigger" }));
+    const body: SendNotificationPayload = await req.json().catch(() => ({
+      title: "Webhook Alert",
+      message: "Incoming webhook trigger",
+    }));
 
     const title = body.title || "Webhook Alert";
     const message = body.message || body.content || "Notification received via webhook";
@@ -101,96 +134,85 @@ serve(async (req: Request) => {
     }
 
     let targetChannelId = body.channelId || body.channel_id || queryChannelId || null;
-    const webhookToken = body.webhookToken || body.webhook_token || queryToken || pathToken || headerToken || null;
+    const webhookToken =
+      body.webhookToken || body.webhook_token || queryToken || pathToken || headerToken || null;
     let targetUserId = body.userId || body.user_id || null;
 
-    let foundChannel: Record<string, unknown> | null = null;
-
-    // 1. If webhook token is provided, look up channel
+    // 1. Channel Resolution with in-memory caching (reduces round-trip to database)
     if (webhookToken && !targetChannelId) {
-      const { data: ch } = await supabase
-        .from("channels")
-        .select("id, user_id, name, is_active, expires_at, description, webhook_token")
-        .eq("webhook_token", webhookToken)
-        .maybeSingle();
+      const now = Date.now();
+      const cached = channelCache.get(webhookToken);
 
-      if (ch) {
-        foundChannel = ch;
-        targetChannelId = ch.id;
-        if (!targetUserId && ch.user_id) {
-          targetUserId = ch.user_id;
+      if (cached && cached.expiresAtMs > now) {
+        targetChannelId = cached.id;
+        if (!targetUserId && cached.userId) {
+          targetUserId = cached.userId;
         }
       } else {
-        // Check if webhookToken is a UUID channel_id
-        if (isValidUUID(webhookToken)) {
-          const { data: chById } = await supabase
-            .from("channels")
-            .select("id, user_id, name, is_active, expires_at, description, webhook_token")
-            .eq("id", webhookToken)
-            .maybeSingle();
+        // Look up only the 2 required columns from channels
+        const { data: ch } = await supabase
+          .from("channels")
+          .select("id, user_id")
+          .eq("webhook_token", webhookToken)
+          .maybeSingle();
 
-          if (chById) {
-            foundChannel = chById;
-            targetChannelId = chById.id;
-            if (!targetUserId && chById.user_id) {
-              targetUserId = chById.user_id;
-            }
+        if (ch) {
+          targetChannelId = ch.id;
+          if (!targetUserId && ch.user_id) {
+            targetUserId = ch.user_id;
           }
+          channelCache.set(webhookToken, {
+            id: ch.id,
+            userId: ch.user_id,
+            expiresAtMs: now + CHANNEL_CACHE_TTL_MS,
+          });
+        } else if (isValidUUID(webhookToken)) {
+          targetChannelId = webhookToken;
         }
       }
     }
 
-    // 2. If targetChannelId is provided, verify channel exists
-    if (targetChannelId && !foundChannel) {
-      const { data: ch } = await supabase
-        .from("channels")
-        .select("id, user_id, name, is_active, expires_at, description, webhook_token")
-        .eq("id", targetChannelId)
-        .maybeSingle();
+    const targetRecipientId =
+      body.recipientId ||
+      body.recipient_id ||
+      (targetUserId ? String(targetUserId) : null) ||
+      (targetChannelId ? `channel:${targetChannelId}` : "broadcast");
 
-      if (ch) {
-        foundChannel = ch;
-        if (!targetUserId && ch.user_id) {
-          targetUserId = ch.user_id;
-        }
-      }
-    }
-
-    const targetRecipientId = body.recipientId || body.recipient_id || (targetUserId ? String(targetUserId) : null) || (targetChannelId ? `channel:${targetChannelId}` : 'broadcast');
-
-    const deliveryChannel = String(body.channel || 'in_app').toLowerCase();
-    const notifType = String(body.type || 'info').toLowerCase();
-    const priority = String(body.priority || 'medium').toLowerCase();
-    const category = String(body.category || 'system').toLowerCase();
+    const deliveryChannel = String(body.channel || "in_app").toLowerCase();
+    const notifType = String(body.type || "info").toLowerCase();
+    const priority = String(body.priority || "medium").toLowerCase();
+    const category = String(body.category || "system").toLowerCase();
     const metadata = body.metadata || body.payload || {};
     const ttlDays = body.ttlDays || 3;
     const expiresAt = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000).toISOString();
 
-    // 3. Insert into public.notifications
-    const { data: notification, error: insertError } = await supabase
-      .from("notifications")
-      .insert({
-        channel_id: isValidUUID(targetChannelId) ? targetChannelId : null,
-        user_id: isValidUUID(targetUserId) ? targetUserId : null,
-        recipient_id: targetRecipientId,
-        title: title,
-        message: message,
-        content: content,
-        type: notifType,
-        priority: priority,
-        category: category,
-        channel: deliveryChannel,
-        read: false,
-        is_read: false,
-        metadata: metadata,
-        payload: metadata,
-        action_url: body.actionUrl || body.action_url || null,
-        action_label: body.actionLabel || body.action_label || null,
-        sender: body.sender || { name: "Notification Hub", role: "Dispatcher" },
-        expires_at: expiresAt,
-      })
-      .select()
-      .single();
+    // 2. High-Performance Insert:
+    // When wantFullData is false, only select('id, created_at') to avoid Postgres RETURNING * overhead
+    const insertPayload = {
+      channel_id: isValidUUID(targetChannelId) ? targetChannelId : null,
+      user_id: isValidUUID(targetUserId) ? targetUserId : null,
+      recipient_id: targetRecipientId,
+      title: title,
+      message: message,
+      content: content,
+      type: notifType,
+      priority: priority,
+      category: category,
+      channel: deliveryChannel,
+      read: false,
+      is_read: false,
+      metadata: metadata,
+      payload: metadata,
+      action_url: body.actionUrl || body.action_url || null,
+      action_label: body.actionLabel || body.action_label || null,
+      sender: body.sender || { name: "Notification Hub", role: "Dispatcher" },
+      expires_at: expiresAt,
+    };
+
+    const insertQuery = supabase.from("notifications").insert(insertPayload);
+    const { data: notification, error: insertError } = wantFullData
+      ? await insertQuery.select().single()
+      : await insertQuery.select("id, created_at").single();
 
     if (insertError) {
       throw insertError;
@@ -198,7 +220,7 @@ serve(async (req: Request) => {
 
     const latencyMs = Date.now() - startTime;
 
-    // 4. Telemetry: Log to delivery_logs asynchronously (Non-blocking / No-await)
+    // 3. Telemetry & Web Push: Non-blocking background worker
     runInBackground(
       Promise.allSettled([
         supabase.from("delivery_logs").insert({
@@ -214,7 +236,6 @@ serve(async (req: Request) => {
             recipientId: targetRecipientId,
           },
         }),
-        // Optional Web Push fanout without blocking client response
         supabase.functions.invoke("send-webpush", {
           body: {
             notification_id: notification.id,
@@ -226,30 +247,38 @@ serve(async (req: Request) => {
             payload: metadata,
           },
         }),
-      ])
-        .then(() => {
-          // background tasks finished
-        })
-        .catch((bgErr) => {
-          console.warn("[Background Tasks Warning]:", bgErr);
-        })
+      ]).catch((bgErr) => {
+        console.warn("[Background Tasks Warning]:", bgErr);
+      })
     );
 
-    const responseNotification = {
-      ...notification,
-      channel: foundChannel || (targetChannelId ? { id: targetChannelId, name: "Channel" } : undefined),
-    };
+    // 4. Return fast response (lean acknowledgement by default, full data only if requested)
+    if (wantFullData) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          notification,
+          latencyMs,
+        }),
+        { status: 201, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        notification: responseNotification,
+        id: notification.id,
+        channelId: targetChannelId,
+        createdAt: notification.created_at,
         latencyMs,
       }),
       { status: 201, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {
-    const errorDetails = err?.message || err?.error_description || (typeof err === "object" ? JSON.stringify(err) : String(err));
+    const errorDetails =
+      err?.message ||
+      err?.error_description ||
+      (typeof err === "object" ? JSON.stringify(err) : String(err));
     console.error("Webhook processing error:", err);
     return new Response(
       JSON.stringify({
