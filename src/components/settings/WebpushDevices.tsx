@@ -282,7 +282,7 @@ export default function WebpushDevices() {
               Chưa có thiết bị nào được đăng ký
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-sm mx-auto">
-              Nhấn nút "Bật & Đăng ký thiết bị này" ở trên để nhận thông báo đẩy tức thời khi có webhook.
+              Nhấn nút &quot;Bật &amp; Đăng ký thiết bị này&quot; ở trên để nhận thông báo đẩy tức thời khi có webhook.
             </p>
           </div>
         ) : (
