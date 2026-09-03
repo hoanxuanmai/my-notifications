@@ -1,5 +1,5 @@
 -- ==============================================================================
--- SUPABASE MIGRATION: 20260301020000_fix_check_constraints.sql
+-- SUPABASE MIGRATION: 20260902000000_fix_check_constraints.sql
 -- Drop all CHECK constraints on notifications and related tables to allow
 -- 100% free, unconstrained input for priority, type, channel, category, status, etc.
 -- ==============================================================================
@@ -51,5 +51,3 @@ CREATE INDEX IF NOT EXISTS idx_notifications_priority_created
 
 -- 5. Notify PostgREST to reload schema cache
 NOTIFY pgrst, 'reload schema';
-
-

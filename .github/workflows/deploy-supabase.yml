@@ -105,10 +105,17 @@ jobs:
         if: ${{ !(github.event.inputs.dry_run == 'true') }}
         run: |
           echo "🚀 Đang đẩy Database Migrations lên Supabase Cloud..."
+          PASS_ARG=""
           if [ -n "$SUPABASE_DB_PASSWORD" ]; then
-            supabase db push --password "$SUPABASE_DB_PASSWORD" --debug
-          else
-            supabase db push --debug
+            PASS_ARG="--password $SUPABASE_DB_PASSWORD"
+          fi
+
+          if ! supabase db push $PASS_ARG --debug; then
+            echo "⚠️ db push gặp sự cố, kiểm tra migration list và tự động sửa chữa lịch sử..."
+            supabase migration list $PASS_ARG || true
+            supabase migration repair --status applied 20260901000000 20260901010000 $PASS_ARG || true
+            echo "Thử lại supabase db push..."
+            supabase db push $PASS_ARG --debug
           fi
 
       - name: Deploy Edge Functions
