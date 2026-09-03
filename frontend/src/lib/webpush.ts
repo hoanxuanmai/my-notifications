@@ -131,8 +131,9 @@ export async function subscribeCurrentDevice(forcePrompt = false): Promise<{
 
     // Check if existing subscription used a mismatched key
     if (subscription) {
+      const existingSub = subscription;
       try {
-        const currentKeyRaw = subscription.options?.applicationServerKey;
+        const currentKeyRaw = existingSub.options?.applicationServerKey;
         const targetKeyBytes = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
         let matches = false;
         if (currentKeyRaw) {
@@ -144,12 +145,12 @@ export async function subscribeCurrentDevice(forcePrompt = false): Promise<{
 
         if (!matches) {
           console.log('[WebPush] Refreshing subscription with updated VAPID key...');
-          await subscription.unsubscribe();
+          await existingSub.unsubscribe();
           subscription = null;
         }
       } catch (keyErr) {
         console.warn('[WebPush] Error inspecting key, resetting subscription:', keyErr);
-        await subscription.unsubscribe().catch(() => {});
+        await existingSub.unsubscribe().catch(() => {});
         subscription = null;
       }
     }
@@ -161,6 +162,10 @@ export async function subscribeCurrentDevice(forcePrompt = false): Promise<{
         userVisibleOnly: true,
         applicationServerKey: appServerKey as unknown as BufferSource,
       });
+    }
+
+    if (!subscription) {
+      throw new Error('Could not establish push subscription');
     }
 
     // 5. Send subscription to backend registry
