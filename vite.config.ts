@@ -8,8 +8,21 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(__dirname, './src'),
+        'next/navigation': path.resolve(__dirname, './src/shims/next-navigation.ts'),
+        'next/link': path.resolve(__dirname, './src/shims/next-link.tsx'),
       },
+    },
+    define: {
+      'process.env.NEXT_PUBLIC_SUPABASE_URL': JSON.stringify(
+        process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://ihffmhyyvhfwnzdfpndq.supabase.co'
+      ),
+      'process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY': JSON.stringify(
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImloZmZtaHl5dmhmd256ZGZwbmRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAzNjYwMTcsImV4cCI6MjA1NTk0MjAxN30.example'
+      ),
+      'process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY': JSON.stringify(
+        process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBKr3qBUYIHBQFLXYp5Nksh8U'
+      ),
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
