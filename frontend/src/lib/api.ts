@@ -238,19 +238,40 @@ export const channelsApi = {
 
   addMember: async (channelId: string, email: string): Promise<void> => {
     try {
-      // The RPC always adds members with role 'member' and doesn't take p_role
-      const { error } = await supabase.rpc('add_channel_member_by_email', {
+      const { data, error } = await supabase.rpc('add_channel_member_by_email', {
         p_channel_id: channelId,
         p_email: email,
       });
       if (error) throw error;
-    } catch (err) {
+
+      // Update email in channel_members row if it was null
+      try {
+        await supabase
+          .from('channel_members')
+          .update({ email })
+          .eq('channel_id', channelId)
+          .is('email', null);
+      } catch {
+        // ignore fallback update errors
+      }
+      return data;
+    } catch (err: any) {
       console.warn('Supabase addMember error:', err);
+      throw err;
     }
   },
 
   getMembers: async (channelId: string): Promise<any[]> => {
     try {
+      // 1. Try RPC get_channel_members (which joins auth.users to ensure email is populated)
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_channel_members', {
+        p_channel_id: channelId,
+      });
+      if (!rpcError && rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
+        return rpcData;
+      }
+
+      // 2. Fallback to direct channel_members query
       const { data, error } = await supabase
         .from('channel_members')
         .select('*')
@@ -261,19 +282,34 @@ export const channelsApi = {
     } catch (err) {
       console.warn('Supabase getMembers error:', err);
     }
-    return [
-      { id: 'usr-1', email: 'owner@example.com', username: 'owner', name: 'Channel Owner' },
-    ];
+    return [];
   },
 
   removeMember: async (channelId: string, userId: string): Promise<void> => {
     try {
-      await supabase.rpc('remove_channel_member', {
+      const { error } = await supabase.rpc('remove_channel_member', {
         p_channel_id: channelId,
         p_member_user_id: userId,
       });
+      if (error) {
+        // Fallback direct delete
+        await supabase
+          .from('channel_members')
+          .delete()
+          .eq('channel_id', channelId)
+          .or(`user_id.eq.${userId},id.eq.${userId}`);
+      }
     } catch (err) {
       console.warn('Supabase removeMember error:', err);
+      try {
+        await supabase
+          .from('channel_members')
+          .delete()
+          .eq('channel_id', channelId)
+          .or(`user_id.eq.${userId},id.eq.${userId}`);
+      } catch (e) {
+        console.warn('Fallback delete failed:', e);
+      }
     }
   },
 };

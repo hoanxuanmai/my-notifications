@@ -14,6 +14,21 @@ export enum NotificationPriority {
 }
 
 export type ChannelTemplate = 'default' | 'slack';
+
+export interface ChannelMemberWithUser {
+  id: string;
+  channelId?: string;
+  channel_id?: string;
+  userId?: string;
+  user_id?: string;
+  email?: string;
+  username?: string;
+  name?: string | null;
+  role?: string;
+  createdAt?: string;
+  created_at?: string;
+}
+
 export interface Channel {
   id: string;
   userId?: string;

@@ -2,7 +2,7 @@
 
 
 import { useEffect, useState } from 'react';
-import type { Channel, ChannelTemplate } from '@/types';
+import type { Channel, ChannelMemberWithUser, ChannelTemplate } from '@/types';
 import { channelsApi } from '@/lib/api';
 import { getSupabaseConfig } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth-store';
@@ -12,13 +12,6 @@ interface ChannelSettingsModalProps {
   channel: Channel | null;
   isOpen: boolean;
   onClose: () => void;
-}
-
-interface ChannelMemberWithUser {
-  id: string;
-  email: string;
-  username: string;
-  name?: string | null;
 }
 
 export default function ChannelSettingsModal({
@@ -108,10 +101,13 @@ export default function ChannelSettingsModal({
     }
   };
 
-  const handleRemoveMember = async (memberId: string) => {
+  const handleRemoveMember = async (member: ChannelMemberWithUser) => {
+    const targetUserId = member.user_id || member.userId || member.id;
     try {
-      await channelsApi.removeMember(channel.id, memberId);
-      setMembers((prev) => prev.filter((m) => m.id !== memberId));
+      await channelsApi.removeMember(channel.id, targetUserId);
+      setMembers((prev) =>
+        prev.filter((m) => m.id !== member.id && m.user_id !== targetUserId && m.userId !== targetUserId)
+      );
     } catch (e: any) {
       setError(e?.response?.data?.message || e?.message || 'Failed to remove member');
     }
@@ -181,30 +177,76 @@ export default function ChannelSettingsModal({
           </div>
 
           <div>
-            <h3 className="text-sm font-medium mb-2">Members</h3>
+            <h3 className="text-sm font-medium mb-2 text-gray-900 dark:text-gray-100 flex items-center justify-between">
+              <span>Members</span>
+              {members.length > 0 && (
+                <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
+                  {members.length} {members.length === 1 ? 'member' : 'members'}
+                </span>
+              )}
+            </h3>
             {loading && <p className="text-xs text-gray-500 dark:text-gray-400">Loading members...</p>}
             {error && <p className="text-xs text-red-500 mb-1">{error}</p>}
 
-            <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded p-2 mb-3 text-sm">
+            <div className="max-h-52 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg p-2 mb-3 text-sm divide-y divide-gray-100 dark:divide-gray-800">
               {members.length === 0 && !loading && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">No members yet.</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 py-3 text-center">No members yet.</p>
               )}
               {members.map((member) => {
-                const label = member.name || member.username || member.email || member.id;
+                const displayEmail =
+                  member.email ||
+                  (member.username?.includes('@') ? member.username : null) ||
+                  (member.name?.includes('@') ? member.name : null);
+                const secondaryLabel =
+                  member.name && member.name !== displayEmail
+                    ? member.name
+                    : member.username && member.username !== displayEmail
+                    ? member.username
+                    : null;
+                const isCurrentUser =
+                  !!user &&
+                  (member.user_id === user.id ||
+                    member.userId === user.id ||
+                    (!!displayEmail && displayEmail.toLowerCase() === user.email?.toLowerCase()));
+
                 return (
                   <div
                     key={member.id}
-                    className="flex items-center justify-between py-1 border-b last:border-b-0 border-gray-100 dark:border-gray-700"
+                    className="flex items-center justify-between py-2 first:pt-1 last:pb-1"
                   >
-                    <div>
-                      <div>{label}</div>
-                      <div className="text-[10px] text-gray-500 dark:text-gray-400">{member.email}</div>
+                    <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                      <div className="w-7 h-7 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 flex items-center justify-center font-medium text-xs flex-shrink-0">
+                        {displayEmail ? displayEmail[0].toUpperCase() : 'M'}
+                      </div>
+                      <div className="min-w-0">
+                        <div
+                          className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate"
+                          title={displayEmail || member.id}
+                        >
+                          {displayEmail || member.id}
+                        </div>
+                        {secondaryLabel && (
+                          <div className="text-[10px] text-gray-500 dark:text-gray-400 truncate">
+                            {secondaryLabel}
+                          </div>
+                        )}
+                      </div>
+                      {isCurrentUser && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-medium flex-shrink-0">
+                          You
+                        </span>
+                      )}
+                      {member.role && member.role !== 'member' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-normal flex-shrink-0">
+                          {member.role}
+                        </span>
+                      )}
                     </div>
                     {isOwner && (
                       <button
                         type="button"
-                        onClick={() => handleRemoveMember(member.id)}
-                        className="text-xs text-red-500 hover:text-red-700"
+                        onClick={() => handleRemoveMember(member)}
+                        className="text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors flex-shrink-0"
                       >
                         Remove
                       </button>
