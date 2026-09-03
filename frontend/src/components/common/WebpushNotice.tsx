@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { subscribeCurrentDevice } from "@/lib/webpush";
 
 const WEBPUSH_MESSAGES = {
   vi: {
@@ -55,9 +56,15 @@ export default function WebpushNotice({ lang = 'en' }: { lang?: 'vi' | 'en' }) {
     if (typeof Notification === 'undefined' || busy) return;
     setBusy(true);
     try {
-      const result = await Notification.requestPermission();
-      setPerm(result);
-      if (result === 'granted') dismiss();
+      const res = await subscribeCurrentDevice(true);
+      if (typeof Notification !== 'undefined') {
+        setPerm(Notification.permission);
+      }
+      if (res.success || Notification.permission === 'granted') {
+        dismiss();
+      }
+    } catch (e) {
+      console.error('Failed to subscribe from banner:', e);
     } finally {
       setBusy(false);
     }

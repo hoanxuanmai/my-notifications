@@ -82,6 +82,19 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
           // Thêm notification vào danh sách chi tiết
           get().addNotification(notification);
 
+          // Hiển thị thông báo desktop trực tiếp nếu đã được cấp quyền
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            try {
+              new Notification(notification.title || 'Thông báo mới', {
+                body: notification.message || '',
+                icon: '/icons/icon-192x192.svg',
+                tag: notification.id,
+              });
+            } catch (e) {
+              // ignore
+            }
+          }
+
           // Update last message for the channel so the sidebar
           // shows latest content and sorts by most recent
           set((state) => ({
