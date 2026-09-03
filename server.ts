@@ -295,8 +295,8 @@ const serverSubscriptions: Array<{
 }> = [];
 
 let serverVapidKeys = {
-  publicKey: "BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U",
-  privateKey: "SAMPLE_VAPID_PRIVATE_KEY_FOR_EDGE_FUNCTION_SIGNING",
+  publicKey: "BGk-Oo8bIu07qVCWIg_v2HqI0T9wjoV2exOmVr5u49uSA9sZVpsUQybXh6lbyG9sEfsMSuwYLt3CpQr5-twwkwQ",
+  privateKey: "ewuQQX5EifVp7zqrcQaf_-Oqg0nZ3V-VByMxxc-jPDY",
   subject: "mailto:hoanxuanmai@gmail.com",
 };
 

@@ -432,19 +432,44 @@ export const notificationsApi = {
   },
 };
 
+// Helper to detect current client browser and OS info
+function getClientDeviceInfo() {
+  if (typeof window === 'undefined') {
+    return { browser: 'Browser', os: 'Desktop', name: 'Web Browser' };
+  }
+  const ua = navigator.userAgent;
+  let browser = 'Web Browser';
+  if (ua.includes('Edg/')) browser = 'Edge';
+  else if (ua.includes('Chrome/')) browser = 'Chrome';
+  else if (ua.includes('Safari/') && !ua.includes('Chrome')) browser = 'Safari';
+  else if (ua.includes('Firefox/')) browser = 'Firefox';
+
+  let os = 'Desktop';
+  if (/Android/i.test(ua)) os = 'Android';
+  else if (/iPhone|iPad|iPod/i.test(ua)) os = 'iOS';
+  else if (/Mac OS/i.test(ua)) os = 'macOS';
+  else if (/Windows/i.test(ua)) os = 'Windows';
+  else if (/Linux/i.test(ua)) os = 'Linux';
+
+  return {
+    browser,
+    os,
+    name: `${browser} on ${os}`,
+  };
+}
+
 // Web Push / Delivery API via Supabase
 export const pushApi = {
   subscribe: async (subscription: any): Promise<{ id: string }> => {
-    // A real Supabase session is now required to use the app, so this always
-    // runs authenticated and user_id is the caller's real UUID. Without it the
-    // send-webpush Edge Function can't target this browser.
     const userRes = await supabase.auth.getUser();
-    const userId = userRes.data?.user?.id;
-    if (!userId) {
-      throw new Error('Cannot register push subscription without an authenticated user');
-    }
+    const userId = userRes.data?.user?.id || null;
 
     const subJson = subscription?.toJSON ? subscription.toJSON() : subscription;
+    if (!subJson?.endpoint || !subJson?.keys?.p256dh || !subJson?.keys?.auth) {
+      throw new Error('Invalid push subscription payload');
+    }
+
+    const devInfo = getClientDeviceInfo();
 
     const { data, error } = await supabase
       .from('push_subscriptions')
@@ -452,9 +477,13 @@ export const pushApi = {
         {
           user_id: userId,
           endpoint: subJson.endpoint,
-          p256dh: subJson.keys?.p256dh,
-          auth_token: subJson.keys?.auth,
+          p256dh: subJson.keys.p256dh,
+          auth_token: subJson.keys.auth,
+          device_name: devInfo.name,
+          browser_name: devInfo.browser,
+          os_name: devInfo.os,
           is_active: true,
+          last_used_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'endpoint' }
@@ -597,23 +626,18 @@ export const userMeApi = {
           id: d.id,
           endpoint: d.endpoint,
           createdAt: d.created_at || d.updated_at,
-          userAgent: d.user_agent,
-          browser: 'Chrome / Web Push',
-          os: 'Desktop / Mobile',
+          lastUsedAt: d.last_used_at,
+          deviceName: d.device_name || 'Web Browser',
+          browser: d.browser_name || 'Web Browser',
+          os: d.os_name || 'Web Platform',
+          isActive: d.is_active !== false,
+          userId: d.user_id,
         }));
       }
     } catch (err) {
       console.warn('Supabase getWebPushDevices error:', err);
     }
-    return [
-      {
-        id: 'dev-1',
-        endpoint: 'https://fcm.googleapis.com/fcm/send/sample_token_882',
-        createdAt: new Date().toISOString(),
-        browser: 'Chrome 122',
-        os: 'macOS / Web Push',
-      },
-    ];
+    return [];
   },
 
   deleteWebPushDevice: async (id: string): Promise<void> => {

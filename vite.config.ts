@@ -21,7 +21,7 @@ export default defineConfig(() => {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImloZmZtaHl5dmhmd256ZGZwbmRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAzNjYwMTcsImV4cCI6MjA1NTk0MjAxN30.example'
       ),
       'process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY': JSON.stringify(
-        process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBKr3qBUYIHBQFLXYp5Nksh8U'
+        process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || 'BGk-Oo8bIu07qVCWIg_v2HqI0T9wjoV2exOmVr5u49uSA9sZVpsUQybXh6lbyG9sEfsMSuwYLt3CpQr5-twwkwQ'
       ),
     },
     server: {

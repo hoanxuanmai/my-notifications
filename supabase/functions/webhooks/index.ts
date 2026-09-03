@@ -222,22 +222,9 @@ serve(async (req: Request) => {
 
     // 3. Telemetry & Web Push: Non-blocking background worker
     runInBackground(
-      Promise.allSettled([
-        supabase.from("delivery_logs").insert({
-          notification_id: notification.id,
-          channel: deliveryChannel,
-          status: "delivered",
-          latency_ms: latencyMs,
-          attempt_count: 1,
-          provider: "supabase_edge_function",
-          metadata: {
-            dispatchedVia: "edge_function_webhooks",
-            channelId: targetChannelId,
-            recipientId: targetRecipientId,
-          },
-        }),
-        supabase.functions.invoke("send-webpush", {
-          body: {
+      (async () => {
+        try {
+          const pushPayload = {
             notification_id: notification.id,
             user_id: isValidUUID(targetUserId) ? targetUserId : null,
             channel_id: isValidUUID(targetChannelId) ? targetChannelId : null,
@@ -245,11 +232,42 @@ serve(async (req: Request) => {
             message,
             action_url: body.actionUrl || body.action_url || null,
             payload: metadata,
-          },
-        }),
-      ]).catch((bgErr) => {
-        console.warn("[Background Tasks Warning]:", bgErr);
-      })
+          };
+
+          const { data: pushData, error: pushErr } = await supabase.functions.invoke("send-webpush", {
+            body: pushPayload,
+          });
+
+          if (pushErr) {
+            console.error("[webhooks -> send-webpush error]:", pushErr);
+          } else {
+            console.log("[webhooks -> send-webpush result]:", pushData);
+          }
+
+          const hasSubscribers = pushData && pushData.totalSubscriptions > 0;
+          const status = pushErr
+            ? "failed"
+            : (hasSubscribers ? (pushData.deliveredCount > 0 ? "delivered" : "failed") : "no_subscribers");
+
+          await supabase.from("delivery_logs").insert({
+            notification_id: notification.id,
+            channel: deliveryChannel,
+            status,
+            latency_ms: Date.now() - startTime,
+            attempt_count: 1,
+            provider: "supabase_webpush",
+            metadata: {
+              dispatchedVia: "edge_function_webhooks",
+              channelId: targetChannelId,
+              recipientId: targetRecipientId,
+              pushResult: pushData || null,
+              pushError: pushErr ? String(pushErr) : null,
+            },
+          });
+        } catch (bgErr) {
+          console.warn("[Background Tasks Warning]:", bgErr);
+        }
+      })()
     );
 
     // 4. Return fast response (lean acknowledgement by default, full data only if requested)
